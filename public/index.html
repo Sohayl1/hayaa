@@ -5810,17 +5810,90 @@
       }
     }
 
-    function fillTestUser(type) {
-      if (type === 'patient') {
-        document.getElementById('loginEmail').value = 'patient@example.com';
-        document.getElementById('loginPassword').value = 'password123';
-      } else if (type === 'admin') {
-        document.getElementById('loginEmail').value = 'admin@hayat.com';
-        document.getElementById('loginPassword').value = 'admin123';
-      } else {
-        document.getElementById('loginEmail').value = 'doctor@example.com';
-        document.getElementById('loginPassword').value = 'password123';
+    async function quickDemoLogin(role) {
+      const roleUpper = (role || 'ADMIN').toUpperCase();
+      const btn = document.getElementById('submitBtn');
+      const quickBtn = document.getElementById('quickTestRoleBtn');
+      if (quickBtn) {
+        quickBtn.disabled = true;
+        quickBtn.innerHTML = '<span>⚡ جاري الدخول الفوري...</span>';
       }
+      if (btn) {
+        btn.innerHTML = '<span>⚡ جاري الدخول الفوري...</span>';
+        btn.disabled = true;
+      }
+
+      try {
+        const res = await fetch('/api/auth/quick-demo-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: roleUpper })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          token = data.token;
+          currentUser = data.user;
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(currentUser));
+          showDashboard();
+          return;
+        }
+      } catch (err) {
+        console.warn('Quick demo fallback to standard login:', err);
+      }
+
+      // بديل تلقائي إذا تعذر الاتصال المباشر
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          token = data.token;
+          currentUser = data.user;
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(currentUser));
+          showDashboard();
+        } else {
+          alert('تعذر تسجيل الدخول: ' + (data.error || 'يرجى التأكد من البيانات'));
+        }
+      } catch (e) {
+        alert('خطأ في الاتصال بالخادم: ' + e.message);
+      } finally {
+        if (btn) {
+          btn.innerHTML = '<span>تسجيل الدخول</span>';
+          btn.disabled = false;
+        }
+        if (quickBtn) quickBtn.disabled = false;
+      }
+    }
+
+    async function fillTestUser(type) {
+      let role = 'PATIENT';
+      let email = 'patient@example.com';
+      let password = 'password123';
+
+      if (type === 'admin') {
+        role = 'ADMIN';
+        email = 'admin@hayaa.com';
+        password = 'admin123';
+      } else if (type === 'doctor') {
+        role = 'DOCTOR';
+        email = 'doctor@example.com';
+        password = 'password123';
+      }
+
+      const emailInput = document.getElementById('loginEmail');
+      const passInput = document.getElementById('loginPassword');
+      if (emailInput) emailInput.value = email;
+      if (passInput) passInput.value = password;
+
+      // تنفيذ الدخول الفوري المضمون بنقرة واحدة
+      await quickDemoLogin(role);
     }
 
     async function handleLoginSubmit(e) {
