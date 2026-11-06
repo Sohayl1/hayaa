@@ -604,6 +604,45 @@ app.post('/api/auth/forgot-password/reset', async (req, res) => {
 });
 
 // مسار تسجيل الطبيب مع رفع المستندات الرسمية للتحقق (البطاقة، كارنيه النقابة، صورة الوجه)
+// قائمة الأكواد الترويجية المعتمدة للدخول والتسجيل المجاني (خصم 100% وإعفاء من الـ 100 جنيه)
+const VALID_PROMO_CODES = [
+  'HAYAAFREE',
+  'FREE',
+  'FREE2026',
+  'HAYAA',
+  'HAYA',
+  'HAYAA100',
+  'HAYA100',
+  'DRFREE',
+  'DOCTOR100',
+  'PROMO100',
+  'WELCOME',
+  'VIP',
+  'EGYPT'
+];
+
+// التحقق من كود الخصم الترويجي للدخول المجاني
+app.post('/api/auth/verify-promo', (req, res) => {
+  const code = String(req.body.code || '').trim().toUpperCase();
+  if (!code) {
+    return res.status(400).json({ valid: false, error: 'يرجى إدخال الكود الترويجي' });
+  }
+  if (VALID_PROMO_CODES.includes(code)) {
+    return res.json({
+      valid: true,
+      code,
+      discountPercent: 100,
+      originalFee: 100,
+      finalFee: 0,
+      message: '🎉 تم تفعيل الكود بنجاح! رسوم الاشتراك: 0 جنيه (اشتراك مجاني 100%)'
+    });
+  }
+  return res.status(400).json({
+    valid: false,
+    error: 'الكود المدخل غير صالح. يمكنك استخدام الكود التجريبي المجاني: HAYAAFREE للدخول مجاناً 100%!'
+  });
+});
+
 app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
   try {
     const { name, email, password, specialty, phone, bio } = req.body;
@@ -676,7 +715,12 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
     const latitude = parseFloat(req.body.latitude) || 30.0444;
     const longitude = parseFloat(req.body.longitude) || 31.2357;
 
-    // 6. إنشاء سجل الطبيب في دليل حياه مع تحديد الموقع و GPS
+    const promoCode = String(req.body.promoCode || '').trim().toUpperCase();
+    const isFreePromo = VALID_PROMO_CODES.includes(promoCode);
+    const subscriptionFee = isFreePromo ? 0 : 100;
+    const subscriptionStatus = isFreePromo ? 'FREE_PROMO' : 'PENDING_PAYMENT';
+
+    // 6. إنشاء سجل الطبيب في دليل حياه مع تحديد الموقع و GPS ورسوم الاشتراك
     const doctor = await Doctor.create({
       name: user.name,
       specialty: specialty || 'general',
@@ -698,6 +742,9 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
       rating: 0.0,
       rating_count: 0,
       verification_status: 'PENDING', // قيد المراجعة والموافقة من قبل مالك المنصة شخصياً
+      subscription_fee: subscriptionFee,
+      subscription_status: subscriptionStatus,
+      promo_code: isFreePromo ? promoCode : null,
       user_id: user.id
     });
 
@@ -799,6 +846,11 @@ app.post('/api/auth/register-pharmacy', uploadPharmacyDocs, async (req, res) => 
       governorate: governorate || 'القاهرة'
     });
 
+    const promoCode = String(req.body.promoCode || '').trim().toUpperCase();
+    const isFreePromo = VALID_PROMO_CODES.includes(promoCode);
+    const subscriptionFee = isFreePromo ? 0 : 100;
+    const subscriptionStatus = isFreePromo ? 'FREE_PROMO' : 'PENDING_PAYMENT';
+
     const pharmacy = await Pharmacy.create({
       name,
       address,
@@ -807,6 +859,9 @@ app.post('/api/auth/register-pharmacy', uploadPharmacyDocs, async (req, res) => 
       latitude: parseFloat(req.body.latitude) || 30.0444,
       longitude: parseFloat(req.body.longitude) || 31.2357,
       verification_status: 'PENDING',
+      subscription_fee: subscriptionFee,
+      subscription_status: subscriptionStatus,
+      promo_code: isFreePromo ? promoCode : null,
       license_image: licenseUrl,
       syndicate_card: syndicateCardUrl,
       national_id_image: nationalIdUrl,
@@ -866,6 +921,11 @@ app.post('/api/auth/register-therapy', uploadTherapyDocs, async (req, res) => {
       governorate: governorate || 'السويس'
     });
 
+    const promoCode = String(req.body.promoCode || '').trim().toUpperCase();
+    const isFreePromo = VALID_PROMO_CODES.includes(promoCode);
+    const subscriptionFee = isFreePromo ? 0 : 100;
+    const subscriptionStatus = isFreePromo ? 'FREE_PROMO' : 'PENDING_PAYMENT';
+
     const center = await TherapyCenter.create({
       name,
       description: description || 'مركز متخصص في العلاج الطبيعي والتأهيل الحركي',
@@ -873,6 +933,9 @@ app.post('/api/auth/register-therapy', uploadTherapyDocs, async (req, res) => {
       phone: phone || '',
       governorate: governorate || 'السويس',
       verification_status: 'PENDING',
+      subscription_fee: subscriptionFee,
+      subscription_status: subscriptionStatus,
+      promo_code: isFreePromo ? promoCode : null,
       license_image: licenseUrl,
       syndicate_card: syndicateCardUrl,
       national_id_image: nationalIdUrl,
@@ -3059,6 +3122,15 @@ sequelize.sync().then(async () => {
     "ALTER TABLE appointments ADD COLUMN patient_notes TEXT",
     "ALTER TABLE doctors ADD COLUMN rating_count INTEGER DEFAULT 0",
     "ALTER TABLE doctors ADD COLUMN avatar_url TEXT",
+    "ALTER TABLE doctors ADD COLUMN subscription_fee INTEGER DEFAULT 100",
+    "ALTER TABLE doctors ADD COLUMN subscription_status VARCHAR(255) DEFAULT 'PENDING_PAYMENT'",
+    "ALTER TABLE doctors ADD COLUMN promo_code VARCHAR(255)",
+    "ALTER TABLE pharmacies ADD COLUMN subscription_fee INTEGER DEFAULT 100",
+    "ALTER TABLE pharmacies ADD COLUMN subscription_status VARCHAR(255) DEFAULT 'PENDING_PAYMENT'",
+    "ALTER TABLE pharmacies ADD COLUMN promo_code VARCHAR(255)",
+    "ALTER TABLE therapy_centers ADD COLUMN subscription_fee INTEGER DEFAULT 100",
+    "ALTER TABLE therapy_centers ADD COLUMN subscription_status VARCHAR(255) DEFAULT 'PENDING_PAYMENT'",
+    "ALTER TABLE therapy_centers ADD COLUMN promo_code VARCHAR(255)",
   ];
   for (const sql of migrations) {
     try { await sequelize.query(sql); } catch (e) { /* العمود موجود مسبقاً */ }

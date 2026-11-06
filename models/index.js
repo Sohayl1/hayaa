@@ -120,6 +120,18 @@ const Doctor = sequelize.define('Doctor', {
     type: DataTypes.STRING, // 'PENDING', 'VERIFIED', 'REJECTED'
     defaultValue: 'PENDING',
   },
+  subscription_fee: {
+    type: DataTypes.INTEGER, // رسوم الاشتراك والاعتماد (100 جنيه أو 0 في حالة الكود الترويجي)
+    defaultValue: 100,
+  },
+  subscription_status: {
+    type: DataTypes.STRING, // 'PENDING_PAYMENT', 'FREE_PROMO', 'PAID'
+    defaultValue: 'PENDING_PAYMENT',
+  },
+  promo_code: {
+    type: DataTypes.STRING, // الكود الترويجي المستخدم للدخول مجاناً
+    allowNull: true,
+  },
   clinic_name: {
     type: DataTypes.STRING, // اسم العيادة أو المركز الطبي (مثال: عيادة مصر، عيادات النيل التخصصية)
     defaultValue: 'عيادة خاصة',
@@ -293,6 +305,18 @@ const Pharmacy = sequelize.define('Pharmacy', {
     type: DataTypes.STRING, // 'PENDING', 'VERIFIED', 'REJECTED'
     defaultValue: 'PENDING',
   },
+  subscription_fee: {
+    type: DataTypes.INTEGER, // رسوم الاشتراك والاعتماد (100 جنيه أو 0 في حالة الكود الترويجي)
+    defaultValue: 100,
+  },
+  subscription_status: {
+    type: DataTypes.STRING, // 'PENDING_PAYMENT', 'FREE_PROMO', 'PAID'
+    defaultValue: 'PENDING_PAYMENT',
+  },
+  promo_code: {
+    type: DataTypes.STRING, // الكود الترويجي المستخدم للدخول مجاناً
+    allowNull: true,
+  },
   license_image: {
     type: DataTypes.TEXT, // صورة ترخيص الصيدلية / السجل التجاري
   },
@@ -374,6 +398,18 @@ const TherapyCenter = sequelize.define('TherapyCenter', {
   verification_status: {
     type: DataTypes.STRING, // 'PENDING', 'VERIFIED', 'REJECTED'
     defaultValue: 'PENDING',
+  },
+  subscription_fee: {
+    type: DataTypes.INTEGER, // رسوم الاشتراك والاعتماد (100 جنيه أو 0 في حالة الكود الترويجي)
+    defaultValue: 100,
+  },
+  subscription_status: {
+    type: DataTypes.STRING, // 'PENDING_PAYMENT', 'FREE_PROMO', 'PAID'
+    defaultValue: 'PENDING_PAYMENT',
+  },
+  promo_code: {
+    type: DataTypes.STRING, // الكود الترويجي المستخدم للدخول مجاناً
+    allowNull: true,
   },
   license_image: {
     type: DataTypes.TEXT, // صورة ترخيص المركز الطبي / السجل
