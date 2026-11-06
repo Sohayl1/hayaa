@@ -1961,6 +1961,180 @@
         font-size: 10.5px;
       }
     }
+  
+    /* ==================================================== */
+    /* شاشات التحميل التفاعلية الهيكلية (Skeleton Loaders) */
+    /* ==================================================== */
+    @keyframes skeleton-shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .skeleton-shimmer {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s infinite linear;
+      border-radius: 8px;
+    }
+
+    body.dark-theme .skeleton-shimmer {
+      background: linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%);
+      background-size: 200% 100%;
+    }
+
+    .skeleton-card {
+      background: #ffffff;
+      border-radius: 18px;
+      border: 1px solid #e2e8f0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.02);
+      position: relative;
+      overflow: hidden;
+    }
+
+    body.dark-theme .skeleton-card {
+      background: #0b1523;
+      border-color: #1e293b;
+    }
+
+    .skeleton-circle {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      flex-shrink: 0;
+    }
+
+    .skeleton-line {
+      height: 14px;
+      border-radius: 6px;
+    }
+
+    .skeleton-line.title {
+      width: 60%;
+      height: 18px;
+    }
+
+    .skeleton-line.subtitle {
+      width: 40%;
+      height: 13px;
+    }
+
+    .skeleton-line.badge {
+      width: 30%;
+      height: 22px;
+      border-radius: 20px;
+    }
+
+    /* ==================================================== */
+    /* زر ومودال الطوارئ السريع (SOS Emergency Hub) */
+    /* ==================================================== */
+    .btn-sos-emergency {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.45);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .btn-sos-emergency:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 6px 20px rgba(239, 68, 68, 0.65);
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    }
+
+    .sos-pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+      animation: sos-pulse-anim 1.6s infinite;
+      display: inline-block;
+    }
+
+    @keyframes sos-pulse-anim {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+      }
+    }
+
+    .sos-hotline-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      transition: all 0.2s;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .sos-hotline-card:hover {
+      background: #fee2e2;
+      border-color: #ef4444;
+      transform: translateX(-3px);
+    }
+
+    body.dark-theme .sos-hotline-card {
+      background: #0f172a;
+      border-color: #1e293b;
+    }
+
+    body.dark-theme .sos-hotline-card:hover {
+      background: #450a0a;
+      border-color: #ef4444;
+    }
+
+    .floating-sos-pill {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+      color: white;
+      border-radius: 30px;
+      box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
+      font-size: 13.5px;
+      font-weight: 800;
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.4);
+      transition: all 0.3s;
+    }
+
+    .floating-sos-pill:hover {
+      transform: scale(1.05);
+      box-shadow: 0 10px 30px rgba(239, 68, 68, 0.7);
+    }
   </style>
 </head>
 <body>
@@ -2502,6 +2676,12 @@
         </div>
       </div>
       <div class="topbar-actions">
+        <!-- زر طوارئ وإسعاف SOS الفوري في الهيدر -->
+        <button class="btn-sos-emergency" onclick="openSosModal()" title="خدمة طوارئ وإسعاف وإحداثيات GPS فورية">
+          <span class="sos-pulse-dot"></span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>طوارئ SOS</span>
+        </button>
         <!-- زر فتح القائمة الجانبية للإعدادات والحساب -->
         <button class="btn-settings-toggle" onclick="openAccountDrawer()" title="إعدادات الحساب وتغيير الإضاءة">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -3066,7 +3246,58 @@
       </div>
 
       <div class="cards-grid" id="doctorsList">
-        <p>جاري تحميل الأطباء...</p>
+        <!-- شاشات تحميل هيكلية تفاعلية (Skeleton Loaders) أثناء انتظار البيانات -->
+        <div class="doctor-card skeleton-card">
+          <div class="doc-card-top" style="display:flex; align-items:center; gap:12px;">
+            <div class="skeleton-shimmer skeleton-circle"></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+              <div class="skeleton-shimmer skeleton-line title"></div>
+              <div class="skeleton-shimmer skeleton-line subtitle"></div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <div class="skeleton-shimmer skeleton-line badge"></div>
+            <div class="skeleton-shimmer skeleton-line badge" style="width:25%;"></div>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div class="skeleton-shimmer skeleton-line" style="width:30%; height:16px;"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:35%; height:34px; border-radius:10px;"></div>
+          </div>
+        </div>
+        <div class="doctor-card skeleton-card">
+          <div class="doc-card-top" style="display:flex; align-items:center; gap:12px;">
+            <div class="skeleton-shimmer skeleton-circle"></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+              <div class="skeleton-shimmer skeleton-line title"></div>
+              <div class="skeleton-shimmer skeleton-line subtitle"></div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <div class="skeleton-shimmer skeleton-line badge"></div>
+            <div class="skeleton-shimmer skeleton-line badge" style="width:25%;"></div>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div class="skeleton-shimmer skeleton-line" style="width:30%; height:16px;"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:35%; height:34px; border-radius:10px;"></div>
+          </div>
+        </div>
+        <div class="doctor-card skeleton-card">
+          <div class="doc-card-top" style="display:flex; align-items:center; gap:12px;">
+            <div class="skeleton-shimmer skeleton-circle"></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+              <div class="skeleton-shimmer skeleton-line title"></div>
+              <div class="skeleton-shimmer skeleton-line subtitle"></div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <div class="skeleton-shimmer skeleton-line badge"></div>
+            <div class="skeleton-shimmer skeleton-line badge" style="width:25%;"></div>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div class="skeleton-shimmer skeleton-line" style="width:30%; height:16px;"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:35%; height:34px; border-radius:10px;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3256,7 +3487,43 @@
         </div>
       </div>
       <div id="myAppointmentsList">
-        <p>جاري التحميل...</p>
+        <div class="cards-grid">
+          <!-- شاشات تحميل هيكلية للحجوزات -->
+          <div class="appointment-card skeleton-card" style="border-right:4px solid #cbd5e1;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="skeleton-shimmer skeleton-line" style="width:40%; height:18px;"></div>
+              <div class="skeleton-shimmer skeleton-line" style="width:25%; height:20px; border-radius:12px;"></div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; margin:8px 0;">
+              <div class="skeleton-shimmer skeleton-circle" style="width:42px; height:42px;"></div>
+              <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                <div class="skeleton-shimmer skeleton-line title" style="width:50%;"></div>
+                <div class="skeleton-shimmer skeleton-line subtitle" style="width:30%;"></div>
+              </div>
+            </div>
+            <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+              <div class="skeleton-shimmer skeleton-line" style="width:35%; height:16px;"></div>
+              <div class="skeleton-shimmer skeleton-line" style="width:28%; height:32px; border-radius:8px;"></div>
+            </div>
+          </div>
+          <div class="appointment-card skeleton-card" style="border-right:4px solid #cbd5e1;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="skeleton-shimmer skeleton-line" style="width:40%; height:18px;"></div>
+              <div class="skeleton-shimmer skeleton-line" style="width:25%; height:20px; border-radius:12px;"></div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; margin:8px 0;">
+              <div class="skeleton-shimmer skeleton-circle" style="width:42px; height:42px;"></div>
+              <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                <div class="skeleton-shimmer skeleton-line title" style="width:50%;"></div>
+                <div class="skeleton-shimmer skeleton-line subtitle" style="width:30%;"></div>
+              </div>
+            </div>
+            <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+              <div class="skeleton-shimmer skeleton-line" style="width:35%; height:16px;"></div>
+              <div class="skeleton-shimmer skeleton-line" style="width:28%; height:32px; border-radius:8px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -8146,6 +8413,32 @@
       }
     }
 
+    
+    function renderDoctorsSkeleton(count = 6) {
+      const container = document.getElementById('doctorsList');
+      if (container) renderDoctorsSkeleton(6);
+      if (!container) return;
+      container.innerHTML = Array(count).fill(0).map(() => `
+        <div class="doctor-card skeleton-card">
+          <div class="doc-card-top" style="display:flex; align-items:center; gap:12px;">
+            <div class="skeleton-shimmer skeleton-circle"></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+              <div class="skeleton-shimmer skeleton-line title"></div>
+              <div class="skeleton-shimmer skeleton-line subtitle"></div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <div class="skeleton-shimmer skeleton-line badge"></div>
+            <div class="skeleton-shimmer skeleton-line badge" style="width:25%;"></div>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div class="skeleton-shimmer skeleton-line" style="width:30%; height:16px;"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:35%; height:34px; border-radius:10px;"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
     async function loadDoctors(specialty = '', governorate = '') {
       loadClinics();
       const container = document.getElementById('doctorsList');
@@ -8617,6 +8910,35 @@
               </div>
             `;
           }).join('')}
+        </div>
+      `;
+    }
+
+    
+    function renderAppointmentsSkeleton(count = 3) {
+      const container = document.getElementById('myAppointmentsList');
+      if (!container) return;
+      container.innerHTML = `
+        <div class="cards-grid">
+          ${Array(count).fill(0).map(() => `
+            <div class="appointment-card skeleton-card" style="border-right:4px solid #cbd5e1;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="skeleton-shimmer skeleton-line" style="width:40%; height:18px;"></div>
+                <div class="skeleton-shimmer skeleton-line" style="width:25%; height:20px; border-radius:12px;"></div>
+              </div>
+              <div style="display:flex; gap:10px; align-items:center; margin:8px 0;">
+                <div class="skeleton-shimmer skeleton-circle" style="width:42px; height:42px;"></div>
+                <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                  <div class="skeleton-shimmer skeleton-line title" style="width:50%;"></div>
+                  <div class="skeleton-shimmer skeleton-line subtitle" style="width:30%;"></div>
+                </div>
+              </div>
+              <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+                <div class="skeleton-shimmer skeleton-line" style="width:35%; height:16px;"></div>
+                <div class="skeleton-shimmer skeleton-line" style="width:28%; height:32px; border-radius:8px;"></div>
+              </div>
+            </div>
+          `).join('')}
         </div>
       `;
     }
@@ -9889,6 +10211,86 @@
       }
     }
 
+  
+    // ====================================================
+    // منطق خدمة الطوارئ والإسعاف السريع (SOS Emergency System)
+    // ====================================================
+    function openSosModal() {
+      const modal = document.getElementById('sosEmergencyModal');
+      if (modal) {
+        modal.style.display = 'flex';
+        detectSosLocation(true);
+      }
+    }
+
+    function closeSosModal() {
+      const modal = document.getElementById('sosEmergencyModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function handleSosModalOverlayClick(e) {
+      if (e.target && e.target.id === 'sosEmergencyModal') {
+        closeSosModal();
+      }
+    }
+
+    let userSosCoords = null;
+    function detectSosLocation(isAuto = false) {
+      const statusEl = document.getElementById('sosGpsStatus');
+      const btn = document.getElementById('btnDetectSosLocation');
+      const hospLink = document.getElementById('linkNearbyHospital');
+      const pharmLink = document.getElementById('linkNearbyPharmacy');
+      const waBtn = document.getElementById('btnSosWhatsapp');
+
+      if (!navigator.geolocation) {
+        if (statusEl) statusEl.textContent = 'خاصية تحديد الموقع الجغرافي غير مدعومة على متصفحك.';
+        return;
+      }
+
+      if (statusEl && !isAuto) statusEl.textContent = '⏳ جاري تحديد موقعك الجغرافي بالـ GPS...';
+      if (btn && !isAuto) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ جاري التحديد...';
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          userSosCoords = { lat, lng };
+
+          if (statusEl) {
+            statusEl.innerHTML = `<span style="color:#16a34a; font-weight:800;">✓ تم تحديد موقعك (${lat.toFixed(4)}, ${lng.toFixed(4)})</span>`;
+          }
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '✓ تم التحديد';
+          }
+
+          if (hospLink) {
+            hospLink.href = `https://www.google.com/maps/search/مستشفى+طوارئ/@${lat},${lng},15z`;
+          }
+          if (pharmLink) {
+            pharmLink.href = `https://www.google.com/maps/search/صيدلية+24+ساعة/@${lat},${lng},15z`;
+          }
+          if (waBtn) {
+            const msg = encodeURIComponent(`🚨 استغاثة طبية عاجلة!\nأنا بحاجة لمساعدة طبية فورية.\nموقعي الجغرافي على الخريطة:\nhttps://maps.google.com/?q=${lat},${lng}`);
+            waBtn.href = `https://wa.me/?text=${msg}`;
+          }
+        },
+        (err) => {
+          if (statusEl && !isAuto) {
+            statusEl.innerHTML = '<span style="color:#dc2626;">تعذر جلب الإحداثيات تلقائياً، يمكنك البحث المباشر في الخريطة.</span>';
+          }
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'إعادة المحاولة 🔄';
+          }
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      );
+    }
+
   </script>
 
   <!-- ======================== -->
@@ -9948,6 +10350,145 @@
         </button>
       </form>
     </div>
+  </div>
+
+
+  <!-- ==================================================== -->
+  <!-- مودال الطوارئ والإسعاف السريع (SOS Emergency Hub) -->
+  <!-- ==================================================== -->
+  <div class="modal-overlay" id="sosEmergencyModal" style="display:none;" onclick="handleSosModalOverlayClick(event)">
+    <div class="modal-card" style="max-width:540px; width:95%; background:#ffffff; border-radius:24px; box-shadow:0 25px 60px rgba(0,0,0,0.35); border:1px solid #fee2e2; padding:24px; position:relative; overflow:hidden;" onclick="event.stopPropagation()">
+      <!-- شريط علوي بلون الطوارئ -->
+      <div style="position:absolute; top:0; left:0; right:0; height:6px; background:linear-gradient(90deg, #ef4444, #f97316, #ef4444);"></div>
+
+      <!-- رأس المودال -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="width:46px; height:46px; border-radius:14px; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">
+            🚨
+          </div>
+          <div>
+            <h3 style="margin:0; font-size:18px; color:#991b1b; font-weight:900; display:flex; align-items:center; gap:6px;">
+              <span>خدمة الطوارئ والإسعاف السريع</span>
+              <span style="font-size:11px; background:#ef4444; color:white; padding:2px 8px; border-radius:12px;">SOS 24/7</span>
+            </h3>
+            <span style="font-size:12px; color:#64748b; font-weight:600;">اتصال مباشر بأرقام النجدة والإسعاف وتحديد أقرب مستشفى بالـ GPS</span>
+          </div>
+        </div>
+        <button onclick="closeSosModal()" style="background:#f1f5f9; border:none; width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer; color:#64748b; display:flex; align-items:center; justify-content:center; transition:all 0.2s;">✕</button>
+      </div>
+
+      <!-- أزرار الاتصال السريع المجاني -->
+      <div style="margin-bottom:18px;">
+        <label style="display:block; font-size:13px; font-weight:800; color:#0b1e33; margin-bottom:8px;">
+          📞 خطوط الطوارئ الساخنة (اتصال فوري ومجاني):
+        </label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <!-- الإسعاف -->
+          <a href="tel:123" class="sos-hotline-card" style="border-left:4px solid #ef4444;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:22px;">🚑</span>
+              <div>
+                <strong style="display:block; font-size:13px; color:#991b1b;">الإسعاف المصري</strong>
+                <span style="font-size:11px; color:#64748b;">رقم الطوارئ 123</span>
+              </div>
+            </div>
+            <span style="font-weight:900; font-size:14px; color:#ef4444;">اتصل 📞</span>
+          </a>
+
+          <!-- طوارئ الصحة والحالات الحرجة -->
+          <a href="tel:137" class="sos-hotline-card" style="border-left:4px solid #f97316;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:22px;">🏥</span>
+              <div>
+                <strong style="display:block; font-size:13px; color:#9a3412;">طوارئ الصحة</strong>
+                <span style="font-size:11px; color:#64748b;">رعاية وحضانات 137</span>
+              </div>
+            </div>
+            <span style="font-weight:900; font-size:14px; color:#f97316;">اتصل 📞</span>
+          </a>
+
+          <!-- مركز علاج السموم -->
+          <a href="tel:0224346127" class="sos-hotline-card" style="border-left:4px solid #8b5cf6;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:22px;">🧪</span>
+              <div>
+                <strong style="display:block; font-size:12.5px; color:#5b21b6;">مركز علاج السموم</strong>
+                <span style="font-size:11px; color:#64748b;">طوارئ 24 ساعة</span>
+              </div>
+            </div>
+            <span style="font-weight:900; font-size:14px; color:#8b5cf6;">اتصل 📞</span>
+          </a>
+
+          <!-- شرطة النجدة -->
+          <a href="tel:122" class="sos-hotline-card" style="border-left:4px solid #0284c7;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:22px;">🚔</span>
+              <div>
+                <strong style="display:block; font-size:13px; color:#075985;">شرطة النجدة</strong>
+                <span style="font-size:11px; color:#64748b;">رقم الطوارئ 122</span>
+              </div>
+            </div>
+            <span style="font-weight:900; font-size:14px; color:#0284c7;">اتصل 📞</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- قسم تحديد الموقع GPS والمستشفيات الأقرب -->
+      <div style="background:#fff7ed; border:1.5px dashed #fdba74; border-radius:16px; padding:16px; margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:20px;">📍</span>
+            <div>
+              <strong style="font-size:13.5px; color:#9a3412;">أقرب مستشفى وصيدلية حولك</strong>
+              <div id="sosGpsStatus" style="font-size:11.5px; color:#78350f;">اضغط الزر لتحديد موقعك الجغرافي بالـ GPS</div>
+            </div>
+          </div>
+          <button type="button" onclick="detectSosLocation()" id="btnDetectSosLocation" style="background:linear-gradient(135deg, #f97316, #ea580c); color:white; border:none; padding:8px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:5px; box-shadow:0 3px 10px rgba(234,88,12,0.3);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+            <span>تحديد موقعي الآن</span>
+          </button>
+        </div>
+
+        <!-- أزرار الخرائط المباشرة -->
+        <div id="sosMapLinks" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <a id="linkNearbyHospital" href="https://www.google.com/maps/search/مستشفى+طوارئ" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; background:white; border:1px solid #fed7aa; border-radius:10px; text-decoration:none; color:#9a3412; font-size:12.5px; font-weight:800; transition:all 0.2s;">
+            🏥 أقرب مستشفى طوارئ
+          </a>
+          <a id="linkNearbyPharmacy" href="https://www.google.com/maps/search/صيدلية+24+ساعة" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; background:white; border:1px solid #fed7aa; border-radius:10px; text-decoration:none; color:#15803d; font-size:12.5px; font-weight:800; transition:all 0.2s;">
+            💊 صيدلية طوارئ 24 س
+          </a>
+        </div>
+
+        <!-- زر إرسال الاستغاثة عبر الواتساب مع الموقع -->
+        <div style="margin-top:10px;">
+          <a id="btnSosWhatsapp" href="https://wa.me/?text=🚨%20استغاثة%20طبية%20عاجلة!%20أنا%20بحاجة%20لمساعدة%20طبية%20فورية." target="_blank" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; background:#25d366; color:white; border-radius:10px; text-decoration:none; font-size:13px; font-weight:800; box-shadow:0 3px 10px rgba(37,211,102,0.3);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-5.46-4.45-9.91-9.91-9.91z"/></svg>
+            <span>إرسال استغاثة بموقعي الحالي عبر واتساب</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- إرشادات إسعافات أولية سريعة -->
+      <details style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:10px 14px; cursor:pointer;">
+        <summary style="font-size:13px; font-weight:800; color:#334155; list-style:none; display:flex; justify-content:space-between; align-items:center;">
+          <span>💡 إرشادات الإسعافات الأولية السريعة (اضغط للقراءة)</span>
+          <span style="font-size:13px;">▼</span>
+        </summary>
+        <div style="margin-top:10px; font-size:12.5px; color:#475569; line-height:1.7;">
+          <p style="margin:4px 0;"><strong>• حالة الإغماء أو الدوخة الشديدة:</strong> ضع المريض مستلقياً على ظهره وارفع قدميه للأعلى بمقدار 30 سم لتنشيط الدورة الدموية، وتأكد من سهولة التنفس.</p>
+          <p style="margin:4px 0;"><strong>• أزمة صدرية / ضيق تنفس:</strong> اجعل المصاب في وضع جلوس نصف مستقيم مع إرخاء أي ملابس ضيقة واستدعاء الإسعاف (123) فوراً.</p>
+          <p style="margin:4px 0;"><strong>• النزيف الحاد:</strong> اضغط بشدة وبشاش أو قماش نظيف مباشرة على مكان الجرح دون رفع الضغط لمدة 5 دقائق على الأقل حتى وصول الدعم الطبي.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- زر الطوارئ العائم المباشر لجميع الشاشات -->
+  <div class="floating-sos-pill" onclick="openSosModal()" title="طوارئ وإسعاف فوري SOS">
+    <span class="sos-pulse-dot"></span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    <span>طوارئ SOS</span>
   </div>
 
 </body>
