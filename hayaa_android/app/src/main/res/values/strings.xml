@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">حَيَاه للرعاية الصحية</string>
+    <string name="app_tagline">كل دكتور في مكان واحد</string>
+
+    <!-- 
+      رابط المنصة:
+      1. للاختبار على محاكي أندرويد ستوديو (Android Emulator):
+         استخدم "http://10.0.2.2:5000" (الآي بي ده بيمثل localhost الكمبيوتر مباشرة)
+      2. للاختبار على هاتفك الحقيقي المتصل بنفس شبكة الواي فاي:
+         استخدم عنوان الـ IP الخاص بجهازك مثل: "http://192.168.1.15:5000"
+      3. عند رفع الموقع على خادم سحابي أونلاين:
+         ضع الرابط المباشر مثل: "https://your-domain.com"
+    -->
+    <string name="app_url">http://10.0.2.2:5000</string>
+
+    <string name="offline_title">تعذر الاتصال بالخادم</string>
+    <string name="offline_msg">يرجى التأكد من تشغيل السيرفر أو الاتصال بالإنترنت ثم إعادة المحاولة.</string>
+    <string name="btn_retry">إعادة المحاولة</string>
+    <string name="exit_prompt">اضغط مرة أخرى للخروج من التطبيق</string>
+    <string name="permission_location_prompt">يلزم تفعيل الموقع لتحديد الصيدليات والعيادات الأقرب إليك على الخريطة</string>
+</resources>

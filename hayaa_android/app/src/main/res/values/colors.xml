@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="teal_primary">#00897B</color>
+    <color name="teal_dark">#00695C</color>
+    <color name="teal_accent">#00BFA5</color>
+    <color name="navy_dark">#0B1E33</color>
+    <color name="navy_surface">#133151</color>
+    <color name="white">#FFFFFF</color>
+    <color name="bg_light">#F0F7F7</color>
+    <color name="text_dark">#0F172A</color>
+    <color name="text_muted">#64748B</color>
+    <color name="error_red">#EF4444</color>
+</resources>
