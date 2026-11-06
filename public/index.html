@@ -38,7 +38,7 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
       overflow-x: hidden;
       position: relative;
     }
@@ -837,21 +837,22 @@
       position: relative;
       z-index: 20;
       max-width: 1240px;
-      margin: 0 auto 60px;
-      padding: 0 20px;
+      margin: 0 auto 24px;
+      padding: 0 16px;
       width: 100%;
+      flex: 1;
     }
 
     /* === Topbar / Header === */
     .dash-topbar {
       background: linear-gradient(135deg, #0b1e33 0%, #133151 100%);
-      border-radius: 0 0 28px 28px;
-      padding: 18px 28px;
+      border-radius: 0 0 24px 24px;
+      padding: 14px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 28px;
-      box-shadow: 0 8px 30px rgba(11,30,51,0.2);
+      margin-bottom: 14px;
+      box-shadow: 0 6px 24px rgba(11,30,51,0.18);
       gap: 12px;
     }
     .topbar-brand { display: flex; align-items: center; gap: 12px; }
@@ -1246,7 +1247,7 @@
 
     /* === Tabs Bar === */
     .dash-tabs-bar {
-      display: flex; gap: 8px; overflow-x: auto; margin-bottom: 24px;
+      display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px;
       padding-bottom: 4px; scrollbar-width: none;
     }
     .dash-tabs-bar::-webkit-scrollbar { display: none; }
@@ -1264,8 +1265,8 @@
 
     /* === Content Cards === */
     .dash-card {
-      background: var(--white); border-radius: 22px; padding: 28px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.05); border: 1px solid #e8edf3; margin-bottom: 24px;
+      background: var(--white); border-radius: 20px; padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1.5px solid #e2e8f0; margin-bottom: 18px;
     }
     .section-header {
       display: flex; justify-content: space-between; align-items: center;
@@ -1281,11 +1282,12 @@
     }
     .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
     .filter-pill {
-      background: #f1f5f9; border: 1.5px solid #e2e8f0; padding: 6px 14px;
-      border-radius: 20px; font-size: 12px; font-weight: 700; color: #475569;
-      cursor: pointer; transition: all 0.15s;
+      background: #ffffff; border: 1.5px solid #cbd5e1; padding: 7px 16px;
+      border-radius: 20px; font-size: 12.5px; font-weight: 700; color: #1e293b;
+      cursor: pointer; transition: all 0.18s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .filter-pill:hover, .filter-pill.active { background: #00897b; color: white; border-color: #00897b; }
+    .filter-pill:hover { background: #f0fdf4; border-color: #00897b; color: #00897b; }
+    .filter-pill.active { background: #00897b !important; color: #ffffff !important; border-color: #00897b !important; font-weight: 800; box-shadow: 0 3px 10px rgba(0,137,123,0.3); }
 
     /* === Doctor Cards === */
     .cards-grid {
@@ -2944,7 +2946,6 @@
         </div>
       </div>
     </div>
-    </div>
 
       <!-- قسم 6: شكاوي المستخدمين -->
       <div id="adminSectionComplaints" style="display:none; margin-top:16px;">
@@ -2968,7 +2969,6 @@
           <p style="text-align:center; padding:20px; color:#64748b;">جاري تحميل الشكاوي...</p>
         </div>
       </div>
-    </div>
 
     <!-- محتوى دليل الأطباء -->
     <div id="tab-doctors" class="dash-card tab-content">
@@ -7901,11 +7901,12 @@
                   const hasDoc = schedules.some(s => s.day_of_week === d);
 
                   let btnBg = isSelected ? '#00897b' : '#ffffff';
-                  let btnColor = isSelected ? '#ffffff' : '#334155';
-                  let border = isSelected ? '2px solid #00897b' : '1px solid #cbd5e1';
+                  let btnColor = isSelected ? '#ffffff' : '#0f172a';
+                  let border = isSelected ? '2px solid #00897b' : '1.5px solid #94a3b8';
+                  let shadow = isSelected ? '0 3px 10px rgba(0,137,123,0.35)' : '0 1px 4px rgba(0,0,0,0.06)';
 
                   return `
-                    <button type="button" onclick="selectClinicDay('${clinic.id}', '${d}')" style="background:${btnBg}; color:${btnColor}; border:${border}; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit; white-space:nowrap; display:flex; align-items:center; gap:4px; transition:all 0.18s; box-shadow:${isSelected ? '0 3px 10px rgba(0,137,123,0.3)' : 'none'};">
+                    <button type="button" onclick="selectClinicDay('${clinic.id}', '${d}')" style="background:${btnBg}; color:${btnColor}; border:${border}; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit; white-space:nowrap; display:flex; align-items:center; gap:4px; transition:all 0.18s; box-shadow:${shadow};">
                       <span>${d}</span>
                       ${isToday ? `<span style="background:${isSelected ? '#ffffff' : '#ef4444'}; color:${isSelected ? '#00897b' : '#ffffff'}; font-size:9.5px; padding:1px 6px; border-radius:10px; font-weight:900;">اليوم</span>` : ''}
                       ${(!isToday && hasDoc && !isSelected) ? `<span style="color:#10b981; font-size:10px;">●</span>` : ''}
