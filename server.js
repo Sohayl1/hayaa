@@ -262,6 +262,27 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// نقطة فحص الحالة السحابية (Health Check) لمنصات النشر مثل Render, Railway, Fly.io
+app.get(['/health', '/api/health'], async (req, res) => {
+  try {
+    await sequelize.authenticate();
+    res.status(200).json({
+      status: 'UP',
+      service: 'Hayaa Health Platform API',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      database: 'CONNECTED',
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'DOWN',
+      database: 'DISCONNECTED',
+      error: err.message
+    });
+  }
+});
+
 // Middleware للمصادقة وتدقيق الهوية
 const authenticate = (req, res, next) => {
   const authHeader = req.header('Authorization');

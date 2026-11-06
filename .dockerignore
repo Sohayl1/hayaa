@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.git
+.github
+hayaa_android
+HayaaHealth.apk
+HayaaHealth-GooglePlay.aab
+*.log
+database.sqlite
+.env
+.tmp
