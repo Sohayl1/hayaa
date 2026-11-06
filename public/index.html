@@ -5143,6 +5143,38 @@
   <!-- المنطق البرمجي والربط بالخادم -->
   <!-- ==================================================== -->
   <script>
+    // حماية واعتراض الـ fetch لمنع أخطاء الـ JSON غير الصالح على GitHub Pages وتوفير توجيه ذكي
+    const _baseFetch = window.fetch;
+    window.fetch = async function(resource, init) {
+      // توجيه تلقائي إذا كان مفتوحاً كملف محلي
+      if (window.location.protocol === 'file:' && typeof resource === 'string' && resource.startsWith('/api/')) {
+        resource = 'http://localhost:5000' + resource;
+      }
+
+      try {
+        const res = await _baseFetch(resource, init);
+        const originalJson = res.json.bind(res);
+        res.json = async function() {
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch (jsonErr) {
+            if (text.trim().startsWith('<')) {
+              // إذا كان على GitHub Pages والسيرفر غير مرفوع
+              if (window.location.hostname.includes('github.io')) {
+                throw new Error('خدمة GitHub Pages مخصصة لعرض الفرونت إند فقط ولا تشغل سيرفر Node.js وقاعدة البيانات. لتشغيل المنصة بكامل وظائفها (تسجيل الدخول، الحجز، السداد)، يرجى فتح السيرفر المحلي http://localhost:5000 أو ربط الباك إند باستضافة مثل Render.com.');
+              }
+              throw new Error('لم يتمكن السيرفر من معالجة الطلب، وتلقى المتصفح صفحة HTML بدلاً من JSON.');
+            }
+            throw jsonErr;
+          }
+        };
+        return res;
+      } catch (err) {
+        throw err;
+      }
+    };
+
     // Universal tab navigation fallback helper
     window.navigateTo = function(tab) {
       if (typeof switchDashTab === 'function') {
