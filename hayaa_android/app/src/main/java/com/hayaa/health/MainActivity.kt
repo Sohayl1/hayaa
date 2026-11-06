@@ -103,18 +103,18 @@ class MainActivity : AppCompatActivity() {
         with(binding.webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
-            databaseEnabled = true
             setGeolocationEnabled(true)
-            allowFileAccess = true
+            allowFileAccess = false // معايير جوجل بلاي للأمان: منع الوصول المباشر لملفات النظام
             allowContentAccess = true
             useWideViewPort = true
             loadWithOverviewMode = true
             displayZoomControls = false
             builtInZoomControls = false
             cacheMode = WebSettings.LOAD_DEFAULT
+            safeBrowsingEnabled = true // حماية التصفح الآمن متطلب رسمي لجوجل بلاي
 
-            // السماح ببروتوكول HTTP المحلي للمحاكي وشبكة التطوير
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            // التوافق مع بروتوكولات الويب
+            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             userAgentString = "$userAgentString HayaaAndroidApp/1.0"
         }
 
@@ -200,6 +200,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onReceivedSslError(
+                view: WebView?,
+                handler: android.webkit.SslErrorHandler?,
+                error: android.net.http.SslError?
+            ) {
+                // إلزامي وفق معايير جوجل بلاي الأمنية: رفض الشهادات غير الصالحة لحماية بيانات المرضى
+                handler?.cancel()
+                Toast.makeText(this@MainActivity, "خطأ أمان SSL: تم إيقاف الاتصال لحماية خصوصيتك", Toast.LENGTH_SHORT).show()
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
@@ -281,11 +291,6 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
 
         val needed = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED

@@ -5,25 +5,41 @@ plugins {
 
 android {
     namespace = "com.hayaa.health"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.hayaa.health"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFilePath = (project.findProperty("RELEASE_STORE_FILE") as String?) ?: "../release-keystore.jks"
+            storeFile = file(storeFilePath)
+            storePassword = (project.findProperty("RELEASE_STORE_PASSWORD") as String?) ?: "HayaaHealth2026@Key"
+            keyAlias = (project.findProperty("RELEASE_KEY_ALIAS") as String?) ?: "hayaa"
+            keyPassword = (project.findProperty("RELEASE_KEY_PASSWORD") as String?) ?: "HayaaHealth2026@Key"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+            isDebuggable = true
         }
     }
 
