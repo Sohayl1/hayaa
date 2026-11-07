@@ -1569,11 +1569,11 @@ app.get('/api/clinics/:id', async (req, res) => {
   }
 });
 
-// 3. إنشاء عيادة / مجمع عيادات جديد (مقتصر على الأطباء وإدارة المنصة فقط)
+// 3. إنشاء عيادة / مجمع عيادات جديد (مقتصر على إدارة المنصة وإدارة المجمعات فقط)
 app.post('/api/clinics', authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'DOCTOR' && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'عذراً، صلاحية إنشاء العيادات والمجمعات الطبية مقتصرة فقط على الأطباء وإدارة المنصة.' });
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'عذراً، صلاحية إنشاء العيادات والمجمعات الطبية مقتصرة فقط على إدارة المنصة وإدارة المجمع الطبي.' });
     }
 
     const { name, description, specialty, governorate, address, phone, clinic_photo } = req.body;
@@ -1608,9 +1608,9 @@ app.post('/api/clinics/:id/schedules', authenticate, async (req, res) => {
     const clinic = await Clinic.findByPk(req.params.id);
     if (!clinic) return res.status(404).json({ error: 'العيادة غير موجودة' });
 
-    // التحقق الصارم من الصلاحية: فقط منشئ العيادة أو إدارة المنصة يملكون صلاحية تعيين وتعديل جدول الأطباء
-    if (req.user.role !== 'ADMIN' && clinic.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'عذراً، فقط منشئ العيادة أو إدارة المنصة يملكون صلاحية تعيين وتعديل جدول الأطباء' });
+    // التحقق الصارم من الصلاحية: فقط إدارة المنصة يملكون صلاحية تعيين وتعديل جدول الأطباء
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'عذراً، فقط إدارة المنصة وإدارة المجمع الطبي يملكون صلاحية تعيين وتعديل جدول الأطباء' });
     }
 
     const { doctorId, dayOfWeek, shiftHours, notes, customFee } = req.body;
@@ -1659,9 +1659,9 @@ app.delete('/api/clinics/:id/schedules/:scheduleId', authenticate, async (req, r
     const clinic = await Clinic.findByPk(req.params.id);
     if (!clinic) return res.status(404).json({ error: 'العيادة غير موجودة' });
 
-    // التحقق الصارم من الصلاحية: فقط منشئ العيادة أو إدارة المنصة
-    if (req.user.role !== 'ADMIN' && clinic.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'عذراً، فقط منشئ العيادة أو إدارة المنصة يملكون صلاحية حذف مواعيد الأطباء' });
+    // التحقق الصارم من الصلاحية: فقط إدارة المنصة
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'عذراً، فقط إدارة المنصة يملكون صلاحية حذف مواعيد الأطباء' });
     }
 
     const schedule = await ClinicSchedule.findOne({
@@ -1680,8 +1680,8 @@ app.delete('/api/clinics/:id', authenticate, async (req, res) => {
   try {
     const clinic = await Clinic.findByPk(req.params.id);
     if (!clinic) return res.status(404).json({ error: 'العيادة أو المجمع غير موجود' });
-    if (req.user.role !== 'ADMIN' && clinic.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'غير مصرح لك بحذف هذه العيادة' });
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'عذراً، صلاحية حذف العيادات والمجمعات مقتصرة فقط على إدارة المنصة' });
     }
     await ClinicSchedule.destroy({ where: { clinic_id: clinic.id } });
     await clinic.destroy();
