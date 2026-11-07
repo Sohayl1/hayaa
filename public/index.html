@@ -3732,13 +3732,7 @@
         <!-- يتم تعبئتها بواسطة loadTherapyProfile() -->
       </div>
     </div>
-      </div>
 
-      <!-- قائمة عيادات الطبيب وجداول الأسبوع -->
-      <div id="doctorClinicsList" style="display:flex; flex-direction:column; gap:20px;">
-        <p style="text-align:center; color:#64748b; font-size:13px; padding:20px;">⏳ جاري تحميل عياداتك وجداول الأطباء...</p>
-      </div>
-    </div>
 
     <!-- محتوى المواعيد والدفع -->
     <div id="tab-appointments" class="dash-card tab-content" style="display:none;">
@@ -6294,6 +6288,7 @@
       const firstLetter = cleanName ? cleanName.charAt(0) : 'م';
 
       const avatarLetterEl = document.getElementById('dashAvatarLetter');
+      const userGov = (currentUser && currentUser.governorate) ? ` (${currentUser.governorate})` : '';
       if (avatarLetterEl) avatarLetterEl.textContent = firstLetter;
 
       if (isAdmin) {
@@ -6301,7 +6296,7 @@
         document.getElementById('dashRole').textContent = 'لوحة إدارة المنصة والتحكم الشامل - الصلاحية الكاملة لإدارة الأطباء وتعديل الحسابات';
       } else if (isDoctor) {
         document.getElementById('dashWelcome').textContent = `د. ${cleanName}`;
-        document.getElementById('dashRole').textContent = 'لوحة تحكم الطبيب المعتمد - استلام المواعيد وإصدار الروشتات وإدارة العيادات';
+        document.getElementById('dashRole').textContent = 'لوحة تحكم الطبيب المعتمد - استلام المواعيد وإصدار الروشتات ومتابعة الكشوفات';
       } else if (isPharmacy) {
         document.getElementById('dashWelcome').textContent = currentUser.name || 'صيدلية الشفاء المركزية';
         document.getElementById('dashRole').textContent = 'لوحة تحكم الصيدلية المعتمدة 💊 - استلام وصرف طلبيات الروشتات وإدارة بيانات الصيدلية والتوصيل';
@@ -6413,63 +6408,6 @@
         loadTherapySessions();
       } else {
         document.getElementById('dashRole').textContent = `حساب مريض مسجل${userGov} - حجز الكشوفات ومتابعة الروشتات الطبية`;
-      }
-
-      const tabsContainer = document.getElementById('dashTabsBar');
-      const patientStatsBar = document.getElementById('patientStatsBar');
-
-      if (isAdmin) {
-        if (patientStatsBar) patientStatsBar.style.display = 'none';
-        document.getElementById('doctorFeeBar').style.display = 'none';
-        document.getElementById('topNotificationBanner').style.display = 'none';
-        tabsContainer.innerHTML = `
-          <button class="dash-tab-btn active" id="btn-tab-admin" onclick="switchDashTab('admin')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            <span>لوحة الإدارة والتحكم الشاملة</span>
-          </button>
-          <button class="dash-tab-btn" id="btn-tab-doctors" onclick="switchDashTab('doctors')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
-            <span>دليل الأطباء</span>
-          </button>
-          <button class="dash-tab-btn" id="btn-tab-therapy" onclick="switchDashTab('therapy')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="5" r="3"/><path d="M12 8v8"/><path d="m8 12 8-2"/><path d="m9 20 3-4 3 4"/></svg>
-            <span>مراكز العلاج الطبيعي</span>
-          </button>
-          <button class="dash-tab-btn" id="btn-tab-pharmacies" onclick="switchDashTab('pharmacies')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
-            <span>شبكة الصيدليات</span>
-          </button>
-        `;
-        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-        document.getElementById('tab-admin').style.display = 'block';
-        loadAdminDashboard();
-      } else if (isDoctor) {
-        if (patientStatsBar) patientStatsBar.style.display = 'none';
-        document.getElementById('doctorFeeBar').style.display = 'flex';
-        document.getElementById('topNotificationBanner').style.display = 'none';
-        tabsContainer.innerHTML = `
-          <button class="dash-tab-btn active" id="btn-tab-appointments" onclick="switchDashTab('appointments')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span>طلبات الكشوفات الواردة</span>
-          </button>
-          <button class="dash-tab-btn" id="btn-tab-wallet" onclick="switchDashTab('wallet')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
-            <span>المحفظة والأرباح</span>
-          </button>
-          <button class="dash-tab-btn" id="btn-tab-prescriptions" onclick="switchDashTab('prescriptions')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            <span>الروشتات الصادرة</span>
-          </button>
-          <button class="dash-tab-btn" id="btn-tab-pharmacies" onclick="switchDashTab('pharmacies')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
-            <span>الصيدليات المعتمدة</span>
-          </button>
-        `;
-        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-        document.getElementById('tab-appointments').style.display = 'block';
-        loadAppointments();
-        loadDoctorWallet(true);
-      } else {
         if (patientStatsBar) patientStatsBar.style.display = 'grid';
         document.getElementById('doctorFeeBar').style.display = 'none';
         tabsContainer.innerHTML = `
@@ -6607,7 +6545,6 @@
       }
 
       applyLocalAuth();
-    }
     }
 
     async function fillTestUser(type) {
@@ -11921,10 +11858,7 @@
           if (pharmLink) {
             pharmLink.href = `https://www.google.com/maps/search/صيدلية+24+ساعة/@${lat},${lng},15z`;
           }
-          if (waBtn) {
-            const msg = encodeURIComponent(`🚨 استغاثة طبية عاجلة!\nأنا بحاجة لمساعدة طبية فورية.\nموقعي الجغرافي على الخريطة:\nhttps://maps.google.com/?q=${lat},${lng}`);
-            waBtn.href = `https://wa.me/?text=${msg}`;
-          }
+
         },
         (err) => {
           if (statusEl && !isAuto) {
@@ -12020,7 +11954,7 @@
               <span>خدمة الطوارئ والإسعاف السريع</span>
               <span style="font-size:11px; background:#ef4444; color:white; padding:2px 8px; border-radius:12px;">SOS 24/7</span>
             </h3>
-            <span style="font-size:12px; color:#64748b; font-weight:600;">اتصال مباشر بأرقام النجدة والإسعاف وتحديد أقرب مستشفى بالـ GPS</span>
+            <span style="font-size:12px; color:#64748b; font-weight:600;">اتصال مباشر بأرقام الإسعاف والطوارئ وتحديد أقرب مستشفى بالـ GPS</span>
           </div>
         </div>
         <button onclick="closeSosModal()" style="background:#f1f5f9; border:none; width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer; color:#64748b; display:flex; align-items:center; justify-content:center; transition:all 0.2s;">✕</button>

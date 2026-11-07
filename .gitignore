@@ -6,3 +6,6 @@ database.sqlite
 .idea/
 *.jks
 
+
+*.apk
+*.aab

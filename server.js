@@ -3322,10 +3322,19 @@ sequelize.sync().then(async () => {
   } catch (e) {}
 
   console.log('✅ تم الاتصال ومزامنة جداول قاعدة البيانات بنجاح.');
-  app.listen(PORT, () => {
-    console.log(`🚀 الخادم يعمل بنجاح على: http://localhost:${PORT}`);
-    console.log(`🌐 واجهة الاختبار متاحة على: http://localhost:${PORT}/index.html`);
-  });
+  if (!process.env.VERCEL && require.main === module) {
+    app.listen(PORT, () => {
+      console.log(`🚀 الخادم يعمل بنجاح على: http://localhost:${PORT}`);
+      console.log(`🌐 واجهة الاختبار متاحة على: http://localhost:${PORT}/index.html`);
+    });
+  }
 }).catch(err => {
   console.error('❌ تعذر الاتصال بقاعدة البيانات:', err);
+  if (!process.env.VERCEL && require.main === module) {
+    app.listen(PORT, () => {
+      console.log(`🚀 الخادم يعمل بنمط الطوارئ على: http://localhost:${PORT}`);
+    });
+  }
 });
+
+module.exports = app;
