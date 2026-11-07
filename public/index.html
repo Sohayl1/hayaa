@@ -3196,6 +3196,33 @@
         </div>
       </div>
 
+      <!-- قسم إدارة مجمعات العيادات وجداول الأطباء اليومية (لوحة تحكم المالك الحصرية من الداخل) -->
+      <div id="adminSectionClinics" style="display:none; margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; background:linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border:1.5px solid #bae6fd; border-radius:16px; padding:16px; box-shadow:0 3px 12px rgba(2,132,199,0.06);">
+          <div>
+            <div style="font-weight:900; font-size:16px; color:#0b1e33; display:flex; align-items:center; gap:8px;">
+              <span>🏥</span>
+              <span>لوحة التحكم في مجمعات العيادات ومواعيد الأطباء اليومية</span>
+            </div>
+            <div style="font-size:12px; color:#475569; margin-top:4px;">
+              الصلاحية الحصرية لمالك ومدير المنصة لإنشاء العيادات والمجمعات، وتعيين أو تغيير مواعيد وأطباء الأسبوع وسعر الكشف لكل يوم.
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="quick-test-btn" onclick="openCreateClinicModal()" style="background:#00897b; color:white; border:none; padding:9px 18px; font-size:13px; font-weight:800; border-radius:10px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(0,137,123,0.3);">
+              <span>➕ إنشاء عيادة / مجمع جديد</span>
+            </button>
+            <button type="button" class="quick-test-btn" onclick="loadAdminClinics()" style="background:#ffffff; color:#0284c7; border:1px solid #bae6fd; padding:9px 16px; font-size:12.5px; font-weight:700; border-radius:10px;">
+              <span>🔄 تحديث القائمة</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="adminClinicsList" style="display:flex; flex-direction:column; gap:18px;">
+          <p style="text-align:center; padding:20px; color:#64748b;">جاري تحميل العيادات وجداول الأطباء...</p>
+        </div>
+      </div>
+
       <!-- قسم 1: إدارة الأطباء والعيادات -->
       <div id="adminSectionDoctors" style="display:none; margin-top:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
@@ -3411,9 +3438,6 @@
             </div>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <button type="button" class="quick-test-btn" onclick="openCreateClinicModal()" style="background:#00897b; color:white; border:none; padding:8px 16px; font-size:12px; font-weight:800; border-radius:10px; display:flex; align-items:center; gap:5px; box-shadow:0 3px 10px rgba(0,137,123,0.25);">
-              <span>➕ إنشاء عيادة / مجمع جديد</span>
-            </button>
             <button type="button" class="quick-test-btn" onclick="loadClinics()" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:8px 14px; font-size:12px; font-weight:700; border-radius:10px;">
               🔄 تحديث الجداول
             </button>
@@ -5708,7 +5732,39 @@
     const SEED_FALLBACK_DOCTORS = [{"id":"138cb805-2b8a-40c5-ab5d-afd6075ed126","name":"د. سارة المنصور","specialty":"general","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشارية الطب العام والباطنة ورعاية الأسرة، خبرة أكثر من 12 عاماً.","phone":"01012345678","syndicate_card_front":"https://firebasestorage.googleapis.com/v0/b/hayat-48b0a.firebasestorage.app/o/demo_front.jpg?alt=media","syndicate_card_back":"https://firebasestorage.googleapis.com/v0/b/hayat-48b0a.firebasestorage.app/o/demo_back.jpg?alt=media","graduation_cert":"https://firebasestorage.googleapis.com/v0/b/hayat-48b0a.firebasestorage.app/o/demo_grad.jpg?alt=media","profile_photo":"https://firebasestorage.googleapis.com/v0/b/hayat-48b0a.firebasestorage.app/o/demo_face.jpg?alt=media","national_id_image":null,"consultation_fee":150,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"عيادة مصر التخصصية","clinic_type":"CENTER","clinic_photo":"https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=700&q=80","governorate":"القاهرة","clinic_address":"شارع التحرير، وسط البلد، برج الأطباء، الدور الرابع","latitude":30.0444,"longitude":31.2357,"user_id":"9df4dcc8-5683-4fba-aa0b-85d16c5b4d7d","created_at":"2026-09-16T11:20:10.687Z"},{"id":"7f5d06d1-a179-4acc-80a9-2e5f6358c72e","name":"د. أحمد النجار","specialty":"neuro","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشاري أول جراحة ومخ وأعصاب، علاج آلام العمود الفقري والصداع النصفي والاضطرابات العصبية.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":250,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"مركز النيل للمخ والأعصاب","clinic_type":"CENTER","clinic_photo":"https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=700&q=80","governorate":"القاهرة","clinic_address":"ميدان روكسي، مصر الجديدة، عمارة الأطباء","latitude":30.0915,"longitude":31.3199,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"81a11a77-8089-4f01-8522-bb3be8aef99f","name":"د. طارق السعيد","specialty":"children","rating":0,"rating_count":0,"avatar_url":null,"bio":"أخصائي طب الأطفال وحديثي الولادة والتغذية العلاجية للأطفال ومتابعة النمو والتطعيمات.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":160,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"عيادة براعم المستقبل","clinic_type":"PRIVATE","clinic_photo":null,"governorate":"الجيزة","clinic_address":"شارع الدقي، أمام مترو الدقي، الجيزة","latitude":30.0384,"longitude":31.2114,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"09ec6186-2c91-4de4-9a33-47515873e33c","name":"د. فاطمة الزهراء","specialty":"women","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشارية أمراض النساء والتوليد والحقن المجهري ورعاية صحة المرأة ومتابعة الحمل الحرج.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":180,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"مركز الأمومة الدولي","clinic_type":"CENTER","clinic_photo":null,"governorate":"الإسكندرية","clinic_address":"طريق الكورنيش، لوران، برج السلام الطبي، الإسكندرية","latitude":31.2465,"longitude":29.9723,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"f2cf5d8c-01cc-4fa5-9d80-a68046978880","name":"د. يوسف حسني","specialty":"eyes","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشاري طب وجراحة العيون، تصحيح الإبصار بالليزك وعلاج المياه البيضاء وزرق العين.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":200,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"مركز النور لجراحة العيون والليزك","clinic_type":"CENTER","clinic_photo":null,"governorate":"الدقهلية","clinic_address":"شارع الجمهورية، بجوار جامعة المنصورة، المنصورة","latitude":31.0409,"longitude":31.3785,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"7eba7043-b0a7-44f8-b0cd-c5adcb87db2c","name":"د. سامح عبد الرازق","specialty":"ent","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشاري أمراض وجراحة الأنف والأذن والحنجرة ومناظير الجيوب الأنفية وضعف السمع والاتزان.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":170,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"عيادات الصفوة للأنف والأذن","clinic_type":"PRIVATE","clinic_photo":null,"governorate":"القاهرة","clinic_address":"شارع عباس العقاد، مدينة نصر، القاهرة","latitude":30.0571,"longitude":31.3413,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"8cb298a3-82b2-4649-99fd-4a04c055f1dd","name":"د. هاني الورداني","specialty":"dental","rating":0,"rating_count":0,"avatar_url":null,"bio":"أخصائي زراعة وتجميل وتقويم الأسنان وتصميم الابتسامة الرقمية وعلاج الجذور بدون ألم.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":150,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"عيادة هوليوود سمايل لطب الأسنان","clinic_type":"PRIVATE","clinic_photo":null,"governorate":"الجيزة","clinic_address":"شارع فيصل الرئيسي، محطة حسن محمد، الجيزة","latitude":30.0074,"longitude":31.1856,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"046befcf-bddc-466b-8efd-b56aed743a39","name":"د. نورهان المهدي","specialty":"derma","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشارية الأمراض الجلدية والتجميل والعلاج بالليزر وحقن الفيلر والبوتوكس ونضارة البشرة.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":190,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"عيادات ديرما كير للتجميل والليزر","clinic_type":"CENTER","clinic_photo":null,"governorate":"القاهرة","clinic_address":"التجمع الخامس، شارع التسعين الشمالي، مديكال بارك 1","latitude":30.0254,"longitude":31.4753,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"e771a5e8-153c-490d-8c18-c9ac63796b75","name":"د. حسام الشريف","specialty":"psych","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشاري الطب النفسي وعلاج الإدمان والعلاج المعرفي السلوكي واضطرابات القلق والاكتئاب.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":220,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"مركز السكينة للصحة النفسية","clinic_type":"PRIVATE","clinic_photo":null,"governorate":"الإسكندرية","clinic_address":"سموحة، شارع فوزي معاذ، برج الأطباء، الإسكندرية","latitude":31.2156,"longitude":29.9489,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"7672f424-49ea-43db-a056-d8478d292784","name":"د. كريم عبد العزيز","specialty":"general","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشاري الطب العام والباطنة، خبرة أكثر من 15 عاماً في التشخيص والعلاج السريري.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":200,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"عيادات السلام التخصصية","clinic_type":"CENTER","clinic_photo":null,"governorate":"الغربية","clinic_address":"شارع البحر، طنطا، برج النخيل الطبي","latitude":30.7865,"longitude":31.0004,"user_id":null,"created_at":"2026-09-16T11:20:10.698Z"},{"id":"25df8c84-94d9-4fa9-ae5f-5887c5e1c432","name":"د. كريم سامي","specialty":"therapy","rating":0,"rating_count":0,"avatar_url":null,"bio":"استشاري العلاج الطبيعي والتأهيل الحركي، علاج الانزلاق الغضروفي، وتأهيل إصابات الملاعب وما بعد العمليات الجراحية.","phone":null,"syndicate_card_front":null,"syndicate_card_back":null,"graduation_cert":null,"profile_photo":null,"national_id_image":null,"consultation_fee":180,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"clinic_name":"مركز الحياة للعلاج الطبيعي والتأهيل","clinic_type":"CENTER","clinic_photo":null,"governorate":"القاهرة","clinic_address":"مدينة نصر، شارع مكرم عبيد، القاهرة","latitude":30.061,"longitude":31.345,"user_id":null,"created_at":"2026-09-25T19:51:39.207Z"}];
     const SEED_FALLBACK_PHARMACIES = [{"id":"c8ff9199-cfbc-40ad-9be8-928c24fa255f","name":"صيدلية الشفاء المركزية","address":"شارع التحرير، وسط البلد","phone":"+201000000001","latitude":30.0444,"longitude":31.2357,"governorate":"القاهرة","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T11:20:10.722Z"},{"id":"7a0dff8d-4865-4714-8347-136a37cebb3b","name":"صيدلية الأمل الحديثة","address":"حي الزهور، شارع النصر","phone":"+201000000002","latitude":30.0555,"longitude":31.245,"governorate":"القاهرة","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T11:20:10.722Z"},{"id":"dba57b3b-5b2d-448c-8ef7-46cf70a005ab","name":"صيدلية النور للتوصيل السريع","address":"المعادي، شارع 9","phone":"+201000000003","latitude":29.9602,"longitude":31.2569,"governorate":"القاهرة","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T11:20:10.722Z"},{"id":"218cb5d8-0007-4225-9c08-2f03a4a0cd6c","name":"صيدلية العزبي - فرع سموحة","address":"ميدان فيكتور عمانويل، سموحة، الإسكندرية","phone":"03-4299999","latitude":31.2156,"longitude":29.9553,"governorate":"الإسكندرية","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T12:20:28.535Z"},{"id":"5f57de8b-3900-4bb2-b01a-7c290cf234a7","name":"صيدلية مصر - فرع الدقي","address":"شارع التحرير، تقاطع شارع الدقي، الجيزة","phone":"02-3760000","latitude":30.0384,"longitude":31.2114,"governorate":"الجيزة","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T12:20:28.554Z"},{"id":"d29ed72c-e600-4ade-a4a4-47506028458f","name":"صيدلية سيف - المنصورة","address":"شارع المشاية السفلية، أمام حديقة شجر الدر، المنصورة","phone":"050-2211000","latitude":31.0409,"longitude":31.3785,"governorate":"الدقهلية","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T12:20:28.568Z"},{"id":"0e3a8065-6c1b-4cd2-8ac0-4aae75624b09","name":"صيدلية رشدي - طنطا","address":"شارع الجيش، برج الأطباء، طنطا","phone":"040-3344555","latitude":30.7865,"longitude":31.0004,"governorate":"الغربية","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T12:20:28.581Z"},{"id":"ea871105-8dfa-4d4a-b22a-8e41460cb9ff","name":"صيدلية القناة للتوصيل السريع","address":"شارع الجيش، حي الأربعين، السويس","phone":"062-3221100","latitude":29.9668,"longitude":32.5498,"governorate":"السويس","verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T12:20:28.594Z"}];
     const SEED_FALLBACK_THERAPY = [{"id":"bbfb7a57-0177-4ee8-8c37-aa456b05eda6","name":"مركز ريهاب بلس للعلاج الطبيعي والتأهيل الرياضي","description":"مركز متخصص في تأهيل الرياضيين وعلاج إصابات الملاعب وخشونة المفاصل وآلام العمود الفقري.","services":"تأهيل رياضي | علاج آلام الظهر والرقبة | جلسات الليزر المنخفض | علاج الشد العضلي | رياضة علاجية وإعادة تأهيل حركي","rating":4.89,"phone":"01100000010","governorate":"القاهرة","logo":null,"verification_status":"VERIFIED","subscription_fee":100,"subscription_status":"PENDING_PAYMENT","promo_code":null,"license_image":null,"syndicate_card":null,"national_id_image":null,"user_id":null,"created_at":"2026-09-16T11:20:10.754Z"}];
-    const SEED_FALLBACK_CLINICS = [{"id":"c1","name":"مركز النيل التخصصي للمخ والأعصاب","clinic_type":"CENTER","governorate":"القاهرة","address":"ميدان روكسي، مصر الجديدة","phone":"01012345678","photo":"https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=700&q=80","doctors_count":3},{"id":"c2","name":"عيادة براعم المستقبل لطب الأطفال","clinic_type":"PRIVATE","governorate":"الجيزة","address":"شارع الدقي، أمام المترو","phone":"01123456789","photo":"https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=700&q=80","doctors_count":1},{"id":"c3","name":"مستشفى الشفاء التخصصي والقلب","clinic_type":"HOSPITAL","governorate":"الإسكندرية","address":"طريق الكورنيش، لوران","phone":"01234567890","photo":"https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=700&q=80","doctors_count":5}];
+    const SEED_FALLBACK_CLINICS = [
+      {
+        "id": "1bc6768e-bd08-4e28-adb3-117c63da3bac",
+        "name": "مجمع عيادات كليوباترا التخصصي",
+        "specialty": "مجمع استشاري متكامل",
+        "governorate": "القاهرة",
+        "address": "ميدان روكسي، مصر الجديدة، القاهرة",
+        "phone": "02-24140000",
+        "clinic_photo": "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80",
+        "schedules": [
+          { "id": "s1", "day_of_week": "السبت", "shift_hours": "من 04:00 م إلى 10:00 م", "custom_fee": 250, "notes": "كشف مخ وأعصاب وحالات الصداع والعمود الفقري", "Doctor": { "id": "doc1", "name": "د. أحمد خيري", "specialty": "neuro", "rating": 4.9, "rating_count": 28, "consultation_fee": 250, "profile_photo": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=600&q=80" } },
+          { "id": "s2", "day_of_week": "الأحد", "shift_hours": "من 01:00 م إلى 07:00 م", "custom_fee": 180, "notes": "كشف باطنة وسكر وضغط", "Doctor": { "id": "doc2", "name": "د. سارة المنصور", "specialty": "internal", "rating": 4.95, "rating_count": 42, "consultation_fee": 180, "profile_photo": "https://images.unsplash.com/photo-1594824813637-44c5f49e491c?auto=format&fit=crop&w=600&q=80" } },
+          { "id": "s3", "day_of_week": "الإثنين", "shift_hours": "من 03:00 م إلى 09:00 م", "custom_fee": 160, "notes": "كشف أطفال وحديثي ولادة", "Doctor": { "id": "doc3", "name": "د. يوسف إبراهيم", "specialty": "children", "rating": 4.88, "rating_count": 31, "consultation_fee": 160, "profile_photo": "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=600&q=80" } },
+          { "id": "s4", "day_of_week": "الثلاثاء", "shift_hours": "من 02:00 م إلى 08:00 م", "custom_fee": 190, "notes": "كشف نساء وتوليد ومتابعة حمل", "Doctor": { "id": "doc4", "name": "د. هبة النجار", "specialty": "women", "rating": 4.92, "rating_count": 37, "consultation_fee": 190, "profile_photo": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=600&q=80" } },
+          { "id": "s5", "day_of_week": "الأربعاء", "shift_hours": "من 04:00 م إلى 10:00 م", "custom_fee": 200, "notes": "كشف وفحص عيون ونظر", "Doctor": { "id": "doc5", "name": "د. شريف عثمان", "specialty": "eyes", "rating": 4.85, "rating_count": 22, "consultation_fee": 200, "profile_photo": "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=600&q=80" } },
+          { "id": "s6", "day_of_week": "الخميس", "shift_hours": "من 05:00 م إلى 11:00 م", "custom_fee": 200, "notes": "كشف قلب وأوعية دموية ورسم قلب", "Doctor": { "id": "doc6", "name": "د. خالد الشريف", "specialty": "heart", "rating": 4.96, "rating_count": 55, "consultation_fee": 200, "profile_photo": "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=600&q=80" } },
+          { "id": "s7", "day_of_week": "الجمعة", "shift_hours": "من 02:00 م إلى 08:00 م", "custom_fee": 170, "notes": "كشف أنف وأذن وحنجرة", "Doctor": { "id": "doc7", "name": "د. رانيا كمال", "specialty": "ent", "rating": 4.87, "rating_count": 19, "consultation_fee": 170, "profile_photo": "https://images.unsplash.com/photo-1527613426441-4da17471b66d?auto=format&fit=crop&w=600&q=80" } }
+        ]
+      },
+      {
+        "id": "c2",
+        "name": "عيادة براعم المستقبل لطب الأطفال",
+        "specialty": "طب الأطفال وحديثي الولادة",
+        "governorate": "الجيزة",
+        "address": "شارع الدقي، أمام المترو، الجيزة",
+        "phone": "01123456789",
+        "clinic_photo": "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=700&q=80",
+        "schedules": [
+          { "id": "s21", "day_of_week": "السبت", "shift_hours": "من 01:00 م إلى 08:00 م", "custom_fee": 150, "notes": "تطعيمات ومتابعة نمو الأطفال", "Doctor": { "id": "doc3", "name": "د. يوسف إبراهيم", "specialty": "children", "rating": 4.88, "rating_count": 31, "consultation_fee": 150, "profile_photo": "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=600&q=80" } },
+          { "id": "s22", "day_of_week": "الأحد", "shift_hours": "من 02:00 م إلى 09:00 م", "custom_fee": 150, "notes": "فحص حالات حديثي الولادة", "Doctor": { "id": "doc3", "name": "د. يوسف إبراهيم", "specialty": "children", "rating": 4.88, "rating_count": 31, "consultation_fee": 150, "profile_photo": "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=600&q=80" } }
+        ]
+      }
+    ];
 
     const _baseFetch = window.fetch;
     window.fetch = async function(resource, init = {}) {
@@ -5808,8 +5864,28 @@
           return makeJsonRes(SEED_FALLBACK_DOCTORS);
         }
 
-        // العيادات
+        // العيادات (دعم العرض والإضافة والتعديل والحذف محلياً وسحابياً على GitHub Pages)
         if (urlStr.startsWith('/api/clinics')) {
+          if (method === 'POST') {
+            if (urlStr.includes('/schedules')) {
+              return makeJsonRes({ success: true, message: '✅ تم تثبيت جدول وميعاد هذا اليوم بنجاح!' });
+            } else {
+              const newClinic = {
+                id: 'clinic_' + Date.now(),
+                name: bodyObj.name || 'مجمع عيادات جديد',
+                specialty: bodyObj.specialty || 'مجمع استشاري',
+                governorate: bodyObj.governorate || 'القاهرة',
+                address: bodyObj.address || 'وسط البلد',
+                phone: bodyObj.phone || '',
+                clinic_photo: bodyObj.clinic_photo || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80',
+                schedules: []
+              };
+              SEED_FALLBACK_CLINICS.push(newClinic);
+              return makeJsonRes({ success: true, clinic: newClinic, message: '✅ تم إنشاء مجمع العيادات بنجاح!' }, 201);
+            }
+          } else if (method === 'DELETE') {
+            return makeJsonRes({ success: true, message: '✅ تم الحذف بنجاح!' });
+          }
           return makeJsonRes(SEED_FALLBACK_CLINICS);
         }
 
@@ -6949,12 +7025,210 @@
     async function loadAdminDashboard() {
       loadAdminOverview();
       loadAdminVerifications();
+      loadAdminClinics();
       loadAdminDoctors();
       loadAdminUsers();
       loadAdminTherapy();
       loadAdminPayments();
       loadAdminPayouts();
       loadAdminComplaintsCount();
+    }
+
+    // ====================================================
+    // --- إدارة مجمعات العيادات وتوزيع الأطباء الأسبوعي (لوحة تحكم المالك الحصرية) ---
+    // ====================================================
+    async function loadAdminClinics() {
+      const container = document.getElementById('adminClinicsList');
+      if (!container) return;
+      container.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">جاري تحميل العيادات والمجمعات وجداول الأطباء... ⏳</p>';
+
+      try {
+        const res = await fetch('/api/clinics');
+        const clinics = await res.json();
+        
+        if (document.getElementById('adminStatClinics')) {
+          document.getElementById('adminStatClinics').textContent = Array.isArray(clinics) ? clinics.length : 0;
+        }
+
+        if (!Array.isArray(clinics) || clinics.length === 0) {
+          container.innerHTML = `
+            <div style="background:#ffffff; border:1.5px dashed #cbd5e1; border-radius:16px; padding:35px; text-align:center;">
+              <div style="font-size:38px; margin-bottom:10px;">🏥</div>
+              <h4 style="margin:0 0 8px 0; font-size:16px; color:#0b1e33; font-weight:800;">لا توجد مجمعات عيادات مسجلة حالياً</h4>
+              <p style="font-size:13px; color:#64748b; margin-bottom:18px;">يمكنك كمالك ومدير للمنصة إنشاء أول مجمع عيادات وتوزيع الأطباء عليه على مدار الأسبوع من هنا.</p>
+              <button type="button" class="quick-test-btn" onclick="openCreateClinicModal()" style="background:#00897b; color:white; border:none; padding:10px 22px; font-size:13px; font-weight:800; border-radius:10px; display:inline-flex; align-items:center; gap:6px;">
+                <span>➕ إنشاء مجمع / عيادة جديدة الآن</span>
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        const daysOrder = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+
+        container.innerHTML = clinics.map(clinic => {
+          const schedules = clinic.schedules || [];
+          
+          return `
+            <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:16px; padding:18px; box-shadow:0 3px 12px rgba(0,0,0,0.03);">
+              
+              <!-- هيدر العيادة وأزرار التحكم -->
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; border-bottom:1px solid #f1f5f9; padding-bottom:14px; margin-bottom:14px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <img src="${clinic.clinic_photo || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80'}" alt="${clinic.name}" style="width:58px; height:58px; border-radius:14px; object-fit:cover; border:1.5px solid #cbd5e1;" onerror="this.src='https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80';">
+                  <div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <h3 style="margin:0; font-size:16.5px; font-weight:900; color:#0b1e33;">${clinic.name}</h3>
+                      <span style="background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:800; padding:2px 8px; border-radius:8px;">${clinic.specialty || 'مجمع استشاري'}</span>
+                      <span style="background:#f1f5f9; color:#475569; font-size:11px; font-weight:700; padding:2px 8px; border-radius:8px;">${clinic.governorate}</span>
+                    </div>
+                    <div style="font-size:12px; color:#64748b; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
+                      <span>📍 ${clinic.address}</span>
+                      ${clinic.phone ? `<span>📞 <a href="tel:${clinic.phone}" style="color:#0284c7; text-decoration:none;">${clinic.phone}</a></span>` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', 'السبت')" style="background:#0284c7; color:white; border:none; padding:8px 14px; font-size:12px; font-weight:800; border-radius:10px; display:inline-flex; align-items:center; gap:5px; box-shadow:0 2px 8px rgba(2,132,199,0.3);">
+                    <span>⚙️ تعيين / تغيير أطباء الأسبوع</span>
+                  </button>
+                  <button type="button" class="quick-test-btn" onclick="deleteClinic('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}')" style="background:#fff1f2; color:#e11d48; border:1px solid #fecdd3; padding:8px 12px; font-size:12px; font-weight:700; border-radius:10px; display:inline-flex; align-items:center; gap:4px;">
+                    <span>🗑️ حذف المجمع</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- جدول أيام الأسبوع السبعة وتوزيع الأطباء وساعات العمل -->
+              <div style="margin-bottom:8px;">
+                <div style="font-size:13px; font-weight:800; color:#1e293b; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                  <span>📅</span>
+                  <span>جدول الأطباء والمناوبات الأسبوعي (يمكنك تعديل مواعيد وأطباء أي يوم):</span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:10px;">
+                  ${daysOrder.map(day => {
+                    const sch = schedules.find(s => s.day_of_week === day);
+                    const doc = sch?.Doctor;
+                    
+                    if (doc) {
+                      const specBadge = getSpecialtyBadge(doc.specialty).title;
+                      const fee = sch.custom_fee || doc.consultation_fee || 150;
+                      return `
+                        <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:12px; padding:12px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+                          <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                              <span style="background:#00897b; color:white; font-size:11px; font-weight:800; padding:2px 8px; border-radius:6px;">${day}</span>
+                              <span style="font-size:12px; font-weight:900; color:#00897b;">${fee} ج</span>
+                            </div>
+                            <div style="font-weight:800; font-size:13px; color:#0b1e33;">${doc.name}</div>
+                            <div style="font-size:11.5px; color:#0284c7; font-weight:700;">${specBadge}</div>
+                            <div style="font-size:11px; color:#64748b; margin-top:4px;">⏰ ${sch.shift_hours || 'من 04:00 م إلى 10:00 م'}</div>
+                            ${sch.notes ? `<div style="font-size:10.5px; color:#475569; margin-top:2px; font-style:italic;">📝 ${sch.notes}</div>` : ''}
+                          </div>
+                          
+                          <div style="display:flex; gap:6px; margin-top:4px; padding-top:6px; border-top:1px dashed #e2e8f0;">
+                            <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}', '${doc.id}', '${(sch.shift_hours || '').replace(/'/g, "\\'")}', '${(sch.notes || '').replace(/'/g, "\\'")}', '${sch.id}', ${fee})" style="flex:1; background:#e0f2fe; color:#0369a1; border:none; padding:5px 8px; font-size:11px; font-weight:700; border-radius:8px;">
+                              ✏️ تعديل الميعاد
+                            </button>
+                            <button type="button" class="quick-test-btn" onclick="deleteClinicScheduleDirect('${clinic.id}', '${sch.id}', '${day}')" style="background:#fee2e2; color:#b91c1c; border:none; padding:5px 8px; font-size:11px; font-weight:700; border-radius:8px;">
+                              ❌ إزالة
+                            </button>
+                          </div>
+                        </div>
+                      `;
+                    } else {
+                      return `
+                        <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:12px; padding:12px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+                          <div>
+                            <div style="margin-bottom:6px;">
+                              <span style="background:#e2e8f0; color:#475569; font-size:11px; font-weight:800; padding:2px 8px; border-radius:6px;">${day}</span>
+                            </div>
+                            <div style="font-size:12px; color:#94a3b8; font-style:italic;">لا يوجد طبيب معين لهذا اليوم</div>
+                          </div>
+                          <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}')" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:6px 8px; font-size:11.5px; font-weight:700; border-radius:8px;">
+                            ➕ تعيين طبيب وميعاد
+                          </button>
+                        </div>
+                      `;
+                    }
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        container.innerHTML = `<p style="color:red; text-align:center;">تعذر تحميل العيادات: ${err.message}</p>`;
+      }
+    }
+
+    async function deleteClinicScheduleDirect(clinicId, scheduleId, day) {
+      if (!confirm(`هل أنت متأكد من إلغاء وحذف موعد الطبيب ليوم ${day}؟`)) return;
+      try {
+        const res = await fetch(`/api/clinics/${clinicId}/schedules/${scheduleId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ ' + (data.message || 'تم حذف الموعد بنجاح'));
+          loadClinics();
+          loadAdminClinics();
+        } else {
+          alert('❌ ' + (data.error || 'تعذر الحذف'));
+        }
+      } catch (e) {
+        alert('خطأ: ' + e.message);
+      }
+    }
+
+    async function deleteClinicScheduleFromModal() {
+      const clinicId = document.getElementById('assignClinicId').value;
+      const scheduleId = document.getElementById('assignScheduleId').value;
+      if (!clinicId || !scheduleId) return;
+      if (!confirm('هل أنت متأكد من إلغاء وحذف موعد الطبيب لهذا اليوم؟')) return;
+
+      try {
+        const res = await fetch(`/api/clinics/${clinicId}/schedules/${scheduleId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ ' + (data.message || 'تم إلغاء الموعد بنجاح'));
+          closeAssignClinicDoctorModal();
+          loadClinics();
+          loadAdminClinics();
+        } else {
+          alert('❌ ' + (data.error || 'تعذر الإلغاء'));
+        }
+      } catch (e) {
+        alert('خطأ: ' + e.message);
+      }
+    }
+
+    async function deleteClinic(clinicId, clinicName) {
+      if (!confirm(`هل أنت متأكد تماماً من حذف مجمع/عيادة (${clinicName}) وكافة جداولها؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+
+      try {
+        const res = await fetch(`/api/clinics/${clinicId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ ' + (data.message || 'تم حذف المجمع بنجاح'));
+          loadClinics();
+          loadAdminClinics();
+          loadAdminOverview();
+        } else {
+          alert('❌ ' + (data.error || 'تعذر الحذف'));
+        }
+      } catch (e) {
+        alert('خطأ: ' + e.message);
+      }
     }
 
     // تحميل عدد الشكاوي الجديدة لعرضه في البادج وبطاقة الإحصاء
@@ -6989,6 +7263,10 @@
     }
 
     function switchAdminSubtab(sub) {
+      if (document.getElementById('adminSectionClinics')) {
+        document.getElementById('adminSectionClinics').style.display = sub === 'clinics' ? 'block' : 'none';
+      }
+      if (sub === 'clinics') loadAdminClinics();
       document.querySelectorAll('.admin-subtab-btn').forEach(b => b.classList.remove('active'));
       const activeBtn = document.getElementById('adminSubtabBtn' + sub.charAt(0).toUpperCase() + sub.slice(1));
       if (activeBtn) activeBtn.classList.add('active');
@@ -8685,10 +8963,10 @@
 
         if (!allClinics.length) {
           container.innerHTML = `
-            <div style="text-align:center; padding:20px; color:#64748b; background:white; border-radius:14px; border:1px dashed #cbd5e1;">
+            <div style="text-align:center; padding:24px; color:#64748b; background:white; border-radius:14px; border:1px dashed #cbd5e1;">
               <span style="font-size:32px; display:block; margin-bottom:6px;">🏥</span>
-              <strong>لا توجد مجمعات عيادات مسجلة حالياً</strong>
-              <p style="font-size:12px; margin:4px 0 10px 0;">اضغط على "➕ إنشاء عيادة / مجمع جديد" لإضافة عيادتك وتحديد أطباء الأسبوع.</p>
+              <strong style="color:#0b1e33;">لا توجد مجمعات عيادات معروضة حالياً</strong>
+              <p style="font-size:12px; margin:4px 0 0 0; color:#64748b;">يرجى مراجعة المنصة لاحقاً للاطلاع على مواعيد العيادات المحدثة.</p>
             </div>
           `;
           return;
@@ -8709,7 +8987,7 @@
           return `
             <div class="clinic-poly-card" style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,0.04); margin-bottom:16px;">
               
-              <!-- هيدر وصورة العيادة -->
+              <!-- هيدر وصورة العيادة (عرض نظيف ومخصص للجمهور والمرضى بدون أزرار إدارة) -->
               <div style="position:relative; height:140px; background:#0b1e33;">
                 <img src="${clinic.clinic_photo || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80'}" alt="${clinic.name}" style="width:100%; height:100%; object-fit:cover; opacity:0.85;" onerror="this.src='https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80';">
                 <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(11,30,51,0.2) 0%, rgba(11,30,51,0.85) 100%);"></div>
@@ -8729,10 +9007,6 @@
                       ${clinic.phone ? `<span style="display:flex; align-items:center; gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> <a href="tel:${clinic.phone}" style="color:#38bdf8; text-decoration:none; font-weight:700;">${clinic.phone}</a></span>` : ''}
                     </div>
                   </div>
-                  <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${activeDay}')" style="background:#0284c7; color:white; border:none; padding:7px 14px; font-size:12px; font-weight:800; border-radius:10px; display:flex; align-items:center; gap:6px; box-shadow:0 3px 8px rgba(2,132,199,0.35);">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    <span>تعيين / تغيير أطباء الأسبوع</span>
-                  </button>
                 </div>
               </div>
 
@@ -8823,23 +9097,15 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         <span>احجز كشف مع د. ${activeDoctor.name.replace(/^د\.\s*/, '')} (يوم ${activeDay})</span>
                       </button>
-                      <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${activeDay}')" style="background:#f1f5f9; color:#0369a1; border:1px solid #cbd5e1; padding:9px 12px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        <span>تغيير طبيب يوم ${activeDay}</span>
-                      </button>
                     </div>
                   </div>
                 ` : `
-                  <div style="background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:14px; padding:20px; text-align:center;">
-                    <div style="width:44px; height:44px; border-radius:12px; background:#e0f2fe; color:#0284c7; display:flex; align-items:center; justify-content:center; margin:0 auto 8px;">
+                  <div style="background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:14px; padding:22px; text-align:center;">
+                    <div style="width:44px; height:44px; border-radius:12px; background:#f1f5f9; color:#64748b; display:flex; align-items:center; justify-content:center; margin:0 auto 8px;">
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     </div>
-                    <h4 style="font-size:14px; font-weight:800; color:#0b1e33; margin:0 0 4px 0;">لم يتم تعيين طبيب ليوم ${activeDay} حتى الآن في ${clinic.name}</h4>
-                    <p style="font-size:11.5px; color:#64748b; margin:0 0 12px 0;">يمكن لمنشئ العيادة اختيار الطبيب المناوب لهذا اليوم وتحديد مواعيد كشفه وسعره.</p>
-                    <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${activeDay}')" style="background:#0284c7; color:white; border:none; padding:8px 16px; font-size:12px; font-weight:800; border-radius:10px; display:inline-flex; align-items:center; gap:6px;">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                      <span>تعيين طبيب ليوم ${activeDay}</span>
-                    </button>
+                    <h4 style="font-size:14px; font-weight:800; color:#334155; margin:0 0 4px 0;">لا توجد كشوفات مجدولة ليوم ${activeDay}</h4>
+                    <p style="font-size:12px; color:#64748b; margin:0;">يرجى اختيار يوم آخر من شريط الأيام أعلاه للاطلاع على الأطباء المتاحين والحجز.</p>
                   </div>
                 `}
               </div>
@@ -8898,6 +9164,8 @@
           alert('🎉 ' + data.message);
           closeCreateClinicModal();
           loadClinics();
+          loadAdminClinics();
+          loadAdminOverview();
         } else {
           alert('❌ ' + (data.error || 'تعذر إنشاء العيادة'));
         }
@@ -8910,7 +9178,7 @@
     }
 
     // دوال نافذة تعيين طبيب في جدول العيادة
-    async function openAssignClinicDoctorModal(clinicId, clinicName, defaultDay) {
+    async function openAssignClinicDoctorModal(clinicId, clinicName, defaultDay, defaultDoctorId, defaultShiftHours, defaultNotes, scheduleId, defaultFee) {
       if (!token) {
         alert('يرجى تسجيل الدخول أولاً لإدارة جدول الأطباء');
         return;
@@ -8918,9 +9186,25 @@
 
       document.getElementById('assignClinicId').value = clinicId;
       document.getElementById('assignModalClinicName').textContent = clinicName || 'مجمع العيادات';
+      
+      const scheduleIdInput = document.getElementById('assignScheduleId');
+      if (scheduleIdInput) scheduleIdInput.value = scheduleId || '';
+
+      const deleteBtn = document.getElementById('btnDeleteSchedule');
+      if (deleteBtn) deleteBtn.style.display = scheduleId ? 'inline-block' : 'none';
+
       if (defaultDay) {
         document.getElementById('assignDayOfWeek').value = defaultDay;
       }
+      
+      const shiftHoursInput = document.getElementById('assignShiftHours');
+      if (shiftHoursInput) shiftHoursInput.value = defaultShiftHours || 'من 04:00 م إلى 10:00 م';
+
+      const notesInput = document.getElementById('assignNotes');
+      if (notesInput) notesInput.value = defaultNotes || '';
+
+      const feeInput = document.getElementById('assignCustomFee');
+      if (feeInput) feeInput.value = defaultFee || '';
 
       const select = document.getElementById('assignDoctorSelect');
       select.innerHTML = '<option value="">جاري تحميل الأطباء المعتمدين...</option>';
@@ -8957,6 +9241,7 @@
       const doctorId = document.getElementById('assignDoctorSelect').value;
       const shiftHours = document.getElementById('assignShiftHours').value.trim();
       const notes = document.getElementById('assignNotes').value.trim();
+      const customFee = document.getElementById('assignCustomFee') ? (parseInt(document.getElementById('assignCustomFee').value) || null) : null;
 
       if (!doctorId) {
         alert('يرجى اختيار الطبيب');
@@ -8974,7 +9259,7 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ doctorId, dayOfWeek, shiftHours, notes })
+          body: JSON.stringify({ doctorId, dayOfWeek, shiftHours, notes, customFee })
         });
         const data = await res.json();
         if (res.ok) {
@@ -8982,6 +9267,7 @@
           closeAssignClinicDoctorModal();
           clinicSelectedDays[clinicId] = dayOfWeek;
           loadClinics();
+          loadAdminClinics();
         } else {
           alert('❌ ' + (data.error || 'تعذر تعيين الطبيب'));
         }

@@ -1586,6 +1586,22 @@ app.delete('/api/clinics/:id/schedules/:scheduleId', authenticate, async (req, r
   }
 });
 
+// 6. حذف مجمع / عيادة بالكامل وجداولها (مخصص للمدير أو منشئ العيادة من لوحة التحكم)
+app.delete('/api/clinics/:id', authenticate, async (req, res) => {
+  try {
+    const clinic = await Clinic.findByPk(req.params.id);
+    if (!clinic) return res.status(404).json({ error: 'العيادة أو المجمع غير موجود' });
+    if (req.user.role !== 'ADMIN' && clinic.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'غير مصرح لك بحذف هذه العيادة' });
+    }
+    await ClinicSchedule.destroy({ where: { clinic_id: clinic.id } });
+    await clinic.destroy();
+    res.json({ success: true, message: '✅ تم حذف المجمع الطبي وجداوله بنجاح' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- 3. مراكز العلاج الطبيعي والتأهيل (Therapy Centers) ---
 app.get('/api/therapy-centers', async (req, res) => {
   try {
