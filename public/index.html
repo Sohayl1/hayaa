@@ -5981,6 +5981,9 @@
         // العيادات (دعم العرض والإضافة والتعديل والحذف محلياً وسحابياً على GitHub Pages)
         if (urlStr.startsWith('/api/clinics')) {
           if (method === 'POST') {
+            if (!currentUser || (currentUser.role !== 'DOCTOR' && currentUser.role !== 'ADMIN')) {
+              return makeJsonRes({ error: 'عذراً! صلاحية إنشاء العيادات وتعديل جداول الأطباء مقتصرة فقط على الأطباء وإدارة المنصة.' }, 403);
+            }
             if (urlStr.includes('/schedules')) {
               const parts = urlStr.split('/');
               const clinicId = parts[3];
@@ -9901,8 +9904,8 @@
 
         // دوال نافذة إنشاء عيادة جديدة
     function openCreateClinicModal() {
-      if (!token) {
-        alert('يرجى تسجيل الدخول أولاً لإنشاء عيادة');
+      if (!token || !currentUser || (currentUser.role !== 'DOCTOR' && currentUser.role !== 'ADMIN')) {
+        alert('🚫 عذراً! صلاحية إنشاء العيادات والمجمعات الطبية مقتصرة فقط على الأطباء المعتمدين وإدارة المنصة من داخل لوحة التحكم.');
         return;
       }
       document.getElementById('createClinicModal').style.display = 'flex';
@@ -9915,6 +9918,10 @@
 
     async function submitCreateClinic(e) {
       e.preventDefault();
+      if (!token || !currentUser || (currentUser.role !== 'DOCTOR' && currentUser.role !== 'ADMIN')) {
+        alert('🚫 عذراً! غير مصرح لك بإنشاء عيادات جديدة.');
+        return;
+      }
       const name = document.getElementById('newClinicName').value.trim();
       const governorate = document.getElementById('newClinicGov').value;
       const phone = document.getElementById('newClinicPhone').value.trim();
@@ -9956,8 +9963,8 @@
 
     // دوال نافذة تعيين طبيب في جدول العيادة
     async function openAssignClinicDoctorModal(clinicId, clinicName, defaultDay, defaultDoctorId, defaultShiftHours, defaultNotes, scheduleId, defaultFee) {
-      if (!token) {
-        alert('يرجى تسجيل الدخول أولاً لإدارة جدول الأطباء');
+      if (!token || !currentUser || (currentUser.role !== 'DOCTOR' && currentUser.role !== 'ADMIN')) {
+        alert('🚫 عذراً! تعيين وتعديل جدول ومواعيد الأطباء متاح فقط لمنشئ العيادة أو إدارة المنصة من داخل لوحة التحكم.');
         return;
       }
 
@@ -10013,6 +10020,10 @@
 
     async function submitAssignClinicDoctor(e) {
       e.preventDefault();
+      if (!token || !currentUser || (currentUser.role !== 'DOCTOR' && currentUser.role !== 'ADMIN')) {
+        alert('🚫 عذراً! غير مصرح لك بتعيين أو تعديل جدول الأطباء.');
+        return;
+      }
       const clinicId = document.getElementById('assignClinicId').value;
       const dayOfWeek = document.getElementById('assignDayOfWeek').value;
       const doctorId = document.getElementById('assignDoctorSelect').value;
