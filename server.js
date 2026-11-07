@@ -1045,6 +1045,56 @@ app.post('/api/auth/quick-demo-login', async (req, res) => {
   }
 });
 
+// تسجيل الدخول والتوثيق بواسطة Google عبر Firebase Auth
+app.post('/api/auth/google-login', async (req, res) => {
+  try {
+    const { email, name, photoUrl, uid, role } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'البريد الإلكتروني مطلوب للمتابعة بواسطة Google' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    let user = await User.findOne({ where: { email: cleanEmail } });
+
+    if (!user) {
+      const assignedRole = (role && ['PATIENT', 'DOCTOR', 'PHARMACY', 'THERAPY'].includes(role.toUpperCase())) 
+        ? role.toUpperCase() 
+        : 'PATIENT';
+      const randomPassword = await bcrypt.hash('GOOGLE_AUTH_' + Math.random().toString(36), 10);
+      user = await User.create({
+        name: name || 'مستخدم Google',
+        email: cleanEmail,
+        password: randomPassword,
+        role: assignedRole,
+        governorate: 'القاهرة'
+      });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'تم تسجيل الدخول بنجاح عبر حساب Google ⚡',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        role: user.role,
+        governorate: user.governorate || 'القاهرة',
+        photoUrl: photoUrl || ''
+      }
+    });
+  } catch (err) {
+    console.error('Google Auth Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     let { email, password } = req.body;

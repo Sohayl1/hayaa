@@ -27,6 +27,168 @@
   <!-- Leaflet & Google Maps Tile Layers -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- ============================================== -->
+  <!-- تكامل Firebase الرسمي (Authentication & Firestore) -->
+  <!-- مشروع hayat-d9689 -->
+  <!-- ============================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-analytics.js";
+    import { 
+      getAuth, 
+      GoogleAuthProvider, 
+      signInWithPopup, 
+      signOut as fbSignOut 
+    } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+    import { 
+      getFirestore, 
+      collection, 
+      addDoc, 
+      getDocs, 
+      doc, 
+      setDoc, 
+      query, 
+      orderBy, 
+      limit, 
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDzKVk9zh8Jkg8hOJ4UipBMMOwdaj0TSCA",
+      authDomain: "hayat-d9689.firebaseapp.com",
+      projectId: "hayat-d9689",
+      storageBucket: "hayat-d9689.firebasestorage.app",
+      messagingSenderId: "878275696958",
+      appId: "1:878275696958:web:5f4a5dfa1fc851be47f46f",
+      measurementId: "G-L13E2M0P0J"
+    };
+
+    // تهيئة Firebase
+    const app = initializeApp(firebaseConfig);
+    let analytics = null;
+    try { analytics = getAnalytics(app); } catch (e) {}
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    window.firebaseApp = app;
+    window.firebaseAuth = auth;
+    window.firebaseDb = db;
+    window.googleProvider = provider;
+
+    // تسجيل الدخول السريع عبر Google (Google Sign-In)
+    window.loginWithGoogle = async function() {
+      const googleBtns = document.querySelectorAll('.btn-google-auth');
+      googleBtns.forEach(b => {
+        b.disabled = true;
+        b.dataset.origText = b.innerHTML;
+        b.innerHTML = '<span>جاري فتح نافذة Google... ⏳</span>';
+      });
+
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const fbUser = result.user;
+        if (!fbUser) return;
+
+        const role = (typeof currentAuthRole !== 'undefined' && currentAuthRole) ? currentAuthRole : 'PATIENT';
+        const serverRes = await fetch('/api/auth/google-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: fbUser.email,
+            name: fbUser.displayName || 'مستخدم Google',
+            photoUrl: fbUser.photoURL || '',
+            uid: fbUser.uid,
+            role: role
+          })
+        });
+
+        const data = await serverRes.json();
+        if (serverRes.ok && data.token) {
+          token = data.token;
+          currentUser = data.user;
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(currentUser));
+
+          // حفظ / تحديث المستخدم في Firestore مجموعة 'users'
+          try {
+            await setDoc(doc(db, "users", fbUser.uid), {
+              name: fbUser.displayName || currentUser.name,
+              email: fbUser.email,
+              photoUrl: fbUser.photoURL || '',
+              role: currentUser.role,
+              lastLogin: serverTimestamp(),
+              source: 'GOOGLE_AUTH'
+            }, { merge: true });
+          } catch (fsErr) {
+            console.warn('Firestore sync user:', fsErr);
+          }
+
+          if (document.getElementById('registerModal')) {
+            document.getElementById('registerModal').style.display = 'none';
+          }
+          showDashboard();
+        } else {
+          alert('تعذر استكمال الدخول: ' + (data.error || 'يرجى المحاولة مجدداً'));
+        }
+      } catch (err) {
+        if (err.code === 'auth/popup-closed-by-user') {
+          console.log('Popup closed by user');
+        } else {
+          console.error('Firebase Google Sign-In Error:', err);
+          alert('تعذر تسجيل الدخول بـ Google: ' + (err.message || 'يرجى التأكد من تفعيل Google Provider في Firebase Console'));
+        }
+      } finally {
+        googleBtns.forEach(b => {
+          b.disabled = false;
+          if (b.dataset.origText) b.innerHTML = b.dataset.origText;
+        });
+      }
+    };
+
+    // مزامنة البيانات الحقيقية الجديدة إلى Firebase Firestore
+    window.syncToFirestore = async function(collectionName, data) {
+      try {
+        const docRef = await addDoc(collection(db, collectionName), {
+          ...data,
+          createdAt: serverTimestamp()
+        });
+        console.log(`🔥 [Firebase Firestore] تم الحفظ في ${collectionName}:`, docRef.id);
+        return docRef.id;
+      } catch (err) {
+        console.warn(`Firestore write warning (${collectionName}):`, err.message);
+        return null;
+      }
+    };
+
+    // جلب البيانات المضافة حديثاً في Firestore
+    window.getFirestoreDocs = async function(collectionName) {
+      try {
+        const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'), limit(50));
+        const snapshot = await getDocs(q);
+        const docs = [];
+        snapshot.forEach(docSnap => {
+          docs.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        return docs;
+      } catch (err) {
+        try {
+          const snapshot = await getDocs(collection(db, collectionName));
+          const docs = [];
+          snapshot.forEach(docSnap => {
+            docs.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          return docs;
+        } catch (e2) {
+          return [];
+        }
+      }
+    };
+
+    console.log('🔥 [Firebase] تم تهيئة مشروع hayat-d9689 بنجاح وتفعيل تسجيل الدخول بجوجل وقاعدة البيانات Firestore!');
+  </script>
   <style>
     :root {
       --primary-teal: #00897b;
@@ -2613,13 +2775,22 @@
                 <a class="forgot-link" onclick="openForgotPasswordModal()" style="cursor:pointer;">هل نسيت كلمة المرور؟</a>
               </div>
 
-              <!-- زر تسجيل الدخول الأخضر -->
+                            <!-- زر تسجيل الدخول الأخضر -->
               <button type="submit" class="btn-submit" id="submitBtn">
                 <span id="loginSubmitBtnText">تسجيل الدخول</span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M5 12h14"></path>
                   <path d="m12 5 7 7-7 7"></path>
                 </svg>
+              </button>
+
+              <!-- زر تسجيل الدخول السريع عبر Google -->
+              <div class="divider-row" style="margin: 12px 0 10px;">
+                <span>أو</span>
+              </div>
+              <button type="button" class="btn-google-auth" onclick="loginWithGoogle()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:12px; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:12px; font-size:13.5px; font-weight:800; color:#1e293b; cursor:pointer; font-family:inherit; transition:all 0.2s; box-shadow:0 2px 6px rgba(0,0,0,0.04); margin-bottom:12px;">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+                <span>المتابعة باستخدام Google</span>
               </button>
 
             </form>
@@ -3704,6 +3875,16 @@
         <h3 id="modalTitle" style="font-size:19px; font-weight:800; color:var(--navy-dark); margin-bottom:6px;">إنشاء حساب جديد</h3>
         <p id="modalSubtitle" style="font-size:12px; color:var(--text-muted); margin-bottom:20px;">أدخل بياناتك وسيتم إرسال كود تفعيل لتأكيد البريد</p>
         
+        <!-- التسجيل السريع بـ Google -->
+        <button type="button" class="btn-google-auth" onclick="loginWithGoogle()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:12px; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:12px; font-size:13.5px; font-weight:800; color:#1e293b; cursor:pointer; font-family:inherit; transition:all 0.2s; box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:14px;">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+          <span>التسجيل الفوري باستخدام Google</span>
+        </button>
+
+        <div class="divider-row" style="margin-bottom:14px;">
+          <span>أو التسجيل اليدوي بالبريد</span>
+        </div>
+
         <form onsubmit="handleSendOtpSubmit(event)">
           <input type="hidden" id="regRole" value="PATIENT">
           <div class="form-group">
