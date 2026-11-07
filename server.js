@@ -988,7 +988,11 @@ app.post('/api/auth/register-therapy', uploadTherapyDocs, async (req, res) => {
 app.post('/api/auth/quick-demo-login', async (req, res) => {
   try {
     const rawRole = (req.body.role || 'ADMIN').toUpperCase();
-    const role = (rawRole === 'ADMIN' || rawRole === 'DOCTOR') ? rawRole : 'PATIENT';
+    let role = 'PATIENT';
+    if (rawRole === 'ADMIN') role = 'ADMIN';
+    else if (rawRole === 'DOCTOR') role = 'DOCTOR';
+    else if (rawRole === 'PHARMACY') role = 'PHARMACY';
+    else if (rawRole === 'THERAPY' || rawRole === 'THERAPY_CENTER') role = 'THERAPY_CENTER';
 
     let user = await User.findOne({ where: { role } });
     if (!user) {
@@ -1010,6 +1014,34 @@ app.post('/api/auth/quick-demo-login', async (req, res) => {
           role: 'DOCTOR',
           governorate: 'القاهرة'
         });
+      } else if (role === 'PHARMACY') {
+        const pass = await bcrypt.hash('password123', 10);
+        user = await User.create({
+          name: 'صيدلية الشفاء المركزية (صيدلية تجريبية)',
+          email: 'pharmacy@example.com',
+          password: pass,
+          role: 'PHARMACY',
+          governorate: 'القاهرة'
+        });
+        const pharm = await Pharmacy.findOne();
+        if (pharm) {
+          pharm.user_id = user.id;
+          await pharm.save();
+        }
+      } else if (role === 'THERAPY_CENTER') {
+        const pass = await bcrypt.hash('password123', 10);
+        user = await User.create({
+          name: 'مركز ريهاب بلس للتأهيل والعلاج الطبيعي (مركز تجريبي)',
+          email: 'therapy@example.com',
+          password: pass,
+          role: 'THERAPY_CENTER',
+          governorate: 'القاهرة'
+        });
+        const center = await TherapyCenter.findOne();
+        if (center) {
+          center.user_id = user.id;
+          await center.save();
+        }
       } else {
         const pass = await bcrypt.hash('password123', 10);
         user = await User.create({
@@ -1148,8 +1180,40 @@ app.post('/api/auth/login', async (req, res) => {
         where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), email)
       });
 
-      if (!user || !(await bcrypt.compare(password, user.password))) {
-        return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+      // دعم الحسابات التجريبية للصيدلية والعلاج الطبيعي لضمان الدخول الفوري
+      const isDemoPharmacy = (email === 'pharmacy@example.com' || email === 'pharmacy') && password === 'password123';
+      const isDemoTherapy = (email === 'therapy@example.com' || email === 'therapy') && password === 'password123';
+
+      if (!user) {
+        if (isDemoPharmacy) {
+          const passHash = await bcrypt.hash('password123', 10);
+          user = await User.create({
+            name: 'صيدلية الشفاء المركزية (صيدلية تجريبية)',
+            email: 'pharmacy@example.com',
+            password: passHash,
+            role: 'PHARMACY',
+            governorate: 'القاهرة'
+          });
+        } else if (isDemoTherapy) {
+          const passHash = await bcrypt.hash('password123', 10);
+          user = await User.create({
+            name: 'مركز ريهاب بلس للتأهيل والعلاج الطبيعي (مركز تجريبي)',
+            email: 'therapy@example.com',
+            password: passHash,
+            role: 'THERAPY_CENTER',
+            governorate: 'القاهرة'
+          });
+        } else {
+          return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+        }
+      } else {
+        const isMatch = (await bcrypt.compare(password, user.password)) ||
+          (isDemoPharmacy && user.role === 'PHARMACY') ||
+          (isDemoTherapy && (user.role === 'THERAPY_CENTER' || user.role === 'THERAPY'));
+
+        if (!isMatch) {
+          return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+        }
       }
     }
 
@@ -3036,6 +3100,31 @@ app.get('/api/orders/my', authenticate, async (req, res) => {
         {
           model: Pharmacy,
           attributes: ['name', 'address', 'phone']
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// طلبيات الروشتات وصرف الأدوية الواردة إلى الصيدلية
+app.get('/api/pharmacy/incoming-orders', authenticate, async (req, res) => {
+  try {
+    const orders = await Order.findAll({
+      include: [
+        {
+          model: Prescription,
+          include: [
+            { model: Doctor, attributes: ['name', 'specialty'] },
+            { model: User, attributes: ['name', 'phone', 'governorate'] }
+          ]
+        },
+        {
+          model: Pharmacy,
+          attributes: ['id', 'name', 'address', 'phone']
         }
       ],
       order: [['created_at', 'DESC']]

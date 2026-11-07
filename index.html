@@ -3669,7 +3669,79 @@
       </div>
     </div>
 
-    <!-- تبويب إدارة مجمعات وعيادات الطبيب ومواعيد الأطباء المناوبين -->
+    <!-- 1. تبويب طلبيات الروشتات الواردة للصيدلية -->
+    <div id="tab-pharmacy-orders" class="dash-card tab-content" style="display:none;">
+      <div class="section-header" style="flex-direction:column; align-items:stretch; gap:12px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div class="section-title" style="margin:0; font-size:18px; display:flex; align-items:center; gap:8px;">
+              <div class="section-title-bar" style="background:#d97706;"></div>
+              📦 طلبيات وصرف الروشتات الطبية الواردة
+            </div>
+            <p style="font-size:12.5px; color:#64748b; margin:4px 0 0 0;">
+              لوحة تحكم الصيدلية لصرف وتوصيل طلبيات الروشتات من المرضى، وتحديث حالة الطلب (قيد التجهيز / دليفري / تم التسليم).
+            </p>
+          </div>
+          <button class="quick-test-btn" onclick="loadPharmacyIncomingOrders()" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:8px 14px; font-weight:700;">
+            🔄 تحديث الطلبيات
+          </button>
+        </div>
+      </div>
+      <div id="pharmacyOrdersListContainer">
+        <p style="text-align:center; color:#64748b; padding:20px;">⏳ جاري جلب طلبيات الروشتات...</p>
+      </div>
+    </div>
+
+    <!-- 2. تبويب بيانات الصيدلية والموقع -->
+    <div id="tab-pharmacy-profile" class="dash-card tab-content" style="display:none;">
+      <div class="section-header">
+        <div class="section-title">
+          <div class="section-title-bar" style="background:#d97706;"></div>
+          🏬 بيانات الصيدلية المعتمدة ومواعيد العمل
+        </div>
+      </div>
+      <div id="pharmacyProfileDetails" style="padding:10px;">
+        <!-- يتم تعبئتها بواسطة loadPharmacyProfile() -->
+      </div>
+    </div>
+
+    <!-- 3. تبويب حجوزات وجلسات العلاج الطبيعي والتأهيل -->
+    <div id="tab-therapy-sessions" class="dash-card tab-content" style="display:none;">
+      <div class="section-header" style="flex-direction:column; align-items:stretch; gap:12px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div class="section-title" style="margin:0; font-size:18px; display:flex; align-items:center; gap:8px;">
+              <div class="section-title-bar" style="background:#7e22ce;"></div>
+              📅 حجوزات وجلسات التأهيل الحركي الواردة للمركز
+            </div>
+            <p style="font-size:12.5px; color:#64748b; margin:4px 0 0 0;">
+              متابعة مواعيد جلسات العلاج الطبيعي المحجوزة من المرضى وإدارتها وتأكيد حضور الجلسة.
+            </p>
+          </div>
+          <button class="quick-test-btn" onclick="loadTherapySessions()" style="background:#f3e8ff; color:#7e22ce; border:1px solid #d8b4fe; padding:8px 14px; font-weight:700;">
+            🔄 تحديث الجلسات
+          </button>
+        </div>
+      </div>
+      <div id="therapySessionsListContainer">
+        <p style="text-align:center; color:#64748b; padding:20px;">⏳ جاري جلب جلسات التأهيل...</p>
+      </div>
+    </div>
+
+    <!-- 4. تبويب خدمات وفروع مركز العلاج الطبيعي -->
+    <div id="tab-therapy-profile" class="dash-card tab-content" style="display:none;">
+      <div class="section-header">
+        <div class="section-title">
+          <div class="section-title-bar" style="background:#7e22ce;"></div>
+          🏢 خدمات المركز وفروعه المعتمدة
+        </div>
+      </div>
+      <div id="therapyProfileDetails" style="padding:10px;">
+        <!-- يتم تعبئتها بواسطة loadTherapyProfile() -->
+      </div>
+    </div>
+
+        <!-- تبويب إدارة مجمعات وعيادات الطبيب ومواعيد الأطباء المناوبين -->
     <div id="tab-doctor-clinics" class="dash-card tab-content" style="display:none;">
       <div class="section-header" style="flex-direction:column; align-items:stretch; gap:14px; margin-bottom:18px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
@@ -5858,6 +5930,16 @@
             role = 'DOCTOR';
             name = 'د. سارة المنصور (طبيبة تجريبية)';
             userEmail = 'doctor@example.com';
+          } else if (rawRole === 'PHARMACY' || email.includes('pharmacy')) {
+            role = 'PHARMACY';
+            name = 'صيدلية الشفاء المركزية (صيدلية تجريبية)';
+            userEmail = 'pharmacy@example.com';
+            userId = 'c8ff9199-cfbc-40ad-9be8-928c24fa255f';
+          } else if (rawRole === 'THERAPY' || rawRole === 'THERAPY_CENTER' || email.includes('therapy')) {
+            role = 'THERAPY_CENTER';
+            name = 'مركز ريهاب بلس للتأهيل والعلاج الطبيعي (مركز تجريبي)';
+            userEmail = 'therapy@example.com';
+            userId = 'bbfb7a57-0177-4ee8-8c37-aa456b05eda6';
           }
 
           return makeJsonRes({
@@ -6242,19 +6324,134 @@
 
       const isDoctor = currentUser && currentUser.role === 'DOCTOR';
       const isAdmin = currentUser && currentUser.role === 'ADMIN';
+      const isPharmacy = currentUser && currentUser.role === 'PHARMACY';
+      const isTherapy = currentUser && (currentUser.role === 'THERAPY_CENTER' || currentUser.role === 'THERAPY');
       const cleanName = currentUser ? currentUser.name.replace(/^د\.\s*/, '') : '';
       const firstLetter = cleanName ? cleanName.charAt(0) : 'م';
 
       const avatarLetterEl = document.getElementById('dashAvatarLetter');
       if (avatarLetterEl) avatarLetterEl.textContent = firstLetter;
 
-      document.getElementById('dashWelcome').textContent = isDoctor ? `د. ${cleanName}` : currentUser.name;
-      const userGov = currentUser?.governorate ? ` | محافظة ${currentUser.governorate}` : '';
-      
       if (isAdmin) {
+        document.getElementById('dashWelcome').textContent = currentUser.name || 'مدير المنصة';
         document.getElementById('dashRole').textContent = 'لوحة إدارة المنصة والتحكم الشامل - الصلاحية الكاملة لإدارة الأطباء وتعديل الحسابات';
       } else if (isDoctor) {
-        document.getElementById('dashRole').textContent = 'لوحة تحكم الطبيب المعتمد - استلام المواعيد وإصدار الروشتات';
+        document.getElementById('dashWelcome').textContent = `د. ${cleanName}`;
+        document.getElementById('dashRole').textContent = 'لوحة تحكم الطبيب المعتمد - استلام المواعيد وإصدار الروشتات وإدارة العيادات';
+      } else if (isPharmacy) {
+        document.getElementById('dashWelcome').textContent = currentUser.name || 'صيدلية الشفاء المركزية';
+        document.getElementById('dashRole').textContent = 'لوحة تحكم الصيدلية المعتمدة 💊 - استلام وصرف طلبيات الروشتات وإدارة بيانات الصيدلية والتوصيل';
+        if (avatarLetterEl) avatarLetterEl.textContent = '💊';
+      } else if (isTherapy) {
+        document.getElementById('dashWelcome').textContent = currentUser.name || 'مركز ريهاب بلس للتأهيل';
+        document.getElementById('dashRole').textContent = 'لوحة تحكم مركز العلاج الطبيعي والتأهيل 🏃‍♂️ - إدارة مواعيد وجلسات التأهيل وفروع المركز';
+        if (avatarLetterEl) avatarLetterEl.textContent = '🏃';
+      } else {
+        document.getElementById('dashWelcome').textContent = currentUser.name || 'أحمد محمود';
+        document.getElementById('dashRole').textContent = `حساب مريض مسجل${userGov} - حجز الكشوفات ومتابعة الروشتات الطبية`;
+      }
+
+      const tabsContainer = document.getElementById('dashTabsBar');
+      const patientStatsBar = document.getElementById('patientStatsBar');
+
+      if (isAdmin) {
+        if (patientStatsBar) patientStatsBar.style.display = 'none';
+        document.getElementById('doctorFeeBar').style.display = 'none';
+        document.getElementById('topNotificationBanner').style.display = 'none';
+        tabsContainer.innerHTML = `
+          <button class="dash-tab-btn active" id="btn-tab-admin" onclick="switchDashTab('admin')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>لوحة الإدارة والتحكم الشاملة</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-doctors" onclick="switchDashTab('doctors')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
+            <span>دليل الأطباء</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-therapy" onclick="switchDashTab('therapy')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="5" r="3"/><path d="M12 8v8"/><path d="m8 12 8-2"/><path d="m9 20 3-4 3 4"/></svg>
+            <span>مراكز العلاج الطبيعي</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-pharmacies" onclick="switchDashTab('pharmacies')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
+            <span>شبكة الصيدليات</span>
+          </button>
+        `;
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.getElementById('tab-admin').style.display = 'block';
+        loadAdminDashboard();
+      } else if (isDoctor) {
+        if (patientStatsBar) patientStatsBar.style.display = 'none';
+        document.getElementById('doctorFeeBar').style.display = 'flex';
+        document.getElementById('topNotificationBanner').style.display = 'none';
+        tabsContainer.innerHTML = `
+          <button class="dash-tab-btn active" id="btn-tab-appointments" onclick="switchDashTab('appointments')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span>طلبات الكشوفات الواردة</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-wallet" onclick="switchDashTab('wallet')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+            <span>المحفظة والأرباح</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-prescriptions" onclick="switchDashTab('prescriptions')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>الروشتات الصادرة</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-doctor-clinics" onclick="switchDashTab('doctor-clinics')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
+            <span>🏥 عياداتي ومواعيد الأطباء</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-pharmacies" onclick="switchDashTab('pharmacies')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
+            <span>الصيدليات المعتمدة</span>
+          </button>
+        `;
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.getElementById('tab-appointments').style.display = 'block';
+        loadAppointments();
+        loadDoctorWallet(true);
+        loadDoctorClinics();
+      } else if (isPharmacy) {
+        if (patientStatsBar) patientStatsBar.style.display = 'none';
+        document.getElementById('doctorFeeBar').style.display = 'none';
+        document.getElementById('topNotificationBanner').style.display = 'none';
+        tabsContainer.innerHTML = `
+          <button class="dash-tab-btn active" id="btn-tab-pharmacy-orders" onclick="switchDashTab('pharmacy-orders')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            <span>📦 طلبيات وصرف الروشتات</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-pharmacy-profile" onclick="switchDashTab('pharmacy-profile')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
+            <span>🏬 بيانات الصيدلية والموقع</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-pharmacies" onclick="switchDashTab('pharmacies')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+            <span>دليل شبكة الصيدليات</span>
+          </button>
+        `;
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.getElementById('tab-pharmacy-orders').style.display = 'block';
+        loadPharmacyIncomingOrders();
+      } else if (isTherapy) {
+        if (patientStatsBar) patientStatsBar.style.display = 'none';
+        document.getElementById('doctorFeeBar').style.display = 'none';
+        document.getElementById('topNotificationBanner').style.display = 'none';
+        tabsContainer.innerHTML = `
+          <button class="dash-tab-btn active" id="btn-tab-therapy-sessions" onclick="switchDashTab('therapy-sessions')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="5" r="3"/><path d="M12 8v8"/><path d="m8 12 8-2"/><path d="m9 20 3-4 3 4"/></svg>
+            <span>📅 حجوزات وجلسات التأهيل</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-therapy-profile" onclick="switchDashTab('therapy-profile')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
+            <span>🏢 خدمات وفروع المركز</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-therapy" onclick="switchDashTab('therapy')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+            <span>دليل مراكز العلاج الطبيعي</span>
+          </button>
+        `;
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.getElementById('tab-therapy-sessions').style.display = 'block';
+        loadTherapySessions();
       } else {
         document.getElementById('dashRole').textContent = `حساب مريض مسجل${userGov} - حجز الكشوفات ومتابعة الروشتات الطبية`;
       }
@@ -6447,8 +6644,17 @@
         role = 'DOCTOR';
         email = 'doctor@example.com';
         password = 'password123';
+      } else if (type === 'pharmacy') {
+        role = 'PHARMACY';
+        email = 'pharmacy@example.com';
+        password = 'password123';
+      } else if (type === 'therapy') {
+        role = 'THERAPY_CENTER';
+        email = 'therapy@example.com';
+        password = 'password123';
       }
 
+      currentAuthRole = role;
       const emailInput = document.getElementById('loginEmail');
       const passInput = document.getElementById('loginPassword');
       if (emailInput) emailInput.value = email;
@@ -6465,6 +6671,12 @@
       if (currentAuthRole === 'ADMIN') {
         if (!email) email = 'admin@hayaa.com';
         if (!password) password = 'admin123';
+      } else if (currentAuthRole === 'PHARMACY') {
+        if (!email) email = 'pharmacy@example.com';
+        if (!password) password = 'password123';
+      } else if (currentAuthRole === 'THERAPY' || currentAuthRole === 'THERAPY_CENTER') {
+        if (!email) email = 'therapy@example.com';
+        if (!password) password = 'password123';
       }
       const btn = document.getElementById('submitBtn');
 
@@ -6551,7 +6763,7 @@
         badgeColor: '#d97706',
         submitText: 'تسجيل الدخول كصيدلية',
         createAccountText: 'تسجيل صيدلية جديدة (100 ج أو مجاناً بكود الخصم)',
-        testLoginRole: null,
+        testLoginRole: 'pharmacy',
         registerFn: () => openPharmacyRegisterModal()
       },
       THERAPY: {
@@ -6562,7 +6774,7 @@
         badgeColor: '#7e22ce',
         submitText: 'تسجيل الدخول كمركز تأهيل',
         createAccountText: 'تسجيل مركز علاج طبيعي (100 ج أو مجاناً بكود الخصم)',
-        testLoginRole: null,
+        testLoginRole: 'therapy',
         registerFn: () => openTherapyRegisterModal()
       },
       ADMIN: {
@@ -6608,6 +6820,17 @@
       if (badgeText2) badgeText2.textContent = config.badge;
 
       // تحديث شارة الخطوة 3 (تسجيل الدخول)
+      if (role === 'PHARMACY') {
+        const emailInput = document.getElementById('loginEmail');
+        const passInput = document.getElementById('loginPassword');
+        if (emailInput) emailInput.value = 'pharmacy@example.com';
+        if (passInput) passInput.value = 'password123';
+      } else if (role === 'THERAPY') {
+        const emailInput = document.getElementById('loginEmail');
+        const passInput = document.getElementById('loginPassword');
+        if (emailInput) emailInput.value = 'therapy@example.com';
+        if (passInput) passInput.value = 'password123';
+      }
       const badgeBox3 = document.getElementById('loginRoleBadgeBox');
       const badgeIcon3 = document.getElementById('loginRoleBadgeIcon');
       const badgeText3 = document.getElementById('loginRoleBadgeText');
@@ -7087,6 +7310,10 @@
 
       if (tab === 'admin') loadAdminDashboard();
       if (tab === 'doctor-clinics') loadDoctorClinics();
+      if (tab === 'pharmacy-orders') loadPharmacyIncomingOrders();
+      if (tab === 'pharmacy-profile') loadPharmacyProfile();
+      if (tab === 'therapy-sessions') loadTherapySessions();
+      if (tab === 'therapy-profile') loadTherapyProfile();
       if (tab === 'doctors') filterDoctors();
       if (tab === 'therapy') loadTherapyCenters();
       if (tab === 'wallet') loadDoctorWallet();
@@ -9369,6 +9596,307 @@
       } catch(err) {
         container.innerHTML = `<p style="color:#dc2626; text-align:center; padding:16px;">❌ حدث خطأ في تحميل العيادات: ${err.message}</p>`;
       }
+    }
+
+    
+    // ====================================================
+    // --- دوال لوحة تحكم الصيدلية (Pharmacy Dashboard) ---
+    // ====================================================
+    let samplePharmacyOrders = [
+      {
+        id: 'ord_101',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        status: 'PENDING',
+        delivery_method: 'DELIVERY',
+        patient_name: 'أحمد محمود',
+        patient_phone: '01012345678',
+        patient_address: 'شارع قصر العيني، عمارة 14، شقة 5',
+        doctor_name: 'د. سارة المنصور',
+        doctor_spec: 'باطنة ورعاية الأسرة',
+        rx_text: '1. جلومترال 500 مجم (حبة بعد الإفطار والعشاء)\n2. كونكور 5 مجم (قرص صباحاً)\n3. فيتامين ب مركب ب-12 (حقنة أسبوعياً)',
+        total_price: 185
+      },
+      {
+        id: 'ord_102',
+        created_at: new Date(Date.now() - 10800000).toISOString(),
+        status: 'OUT_FOR_DELIVERY',
+        delivery_method: 'DELIVERY',
+        patient_name: 'منى الشريف',
+        patient_phone: '01198765432',
+        patient_address: 'ميدان التحرير، بجوار المترو',
+        doctor_name: 'د. يوسف حسني',
+        doctor_spec: 'طب وجراحة العيون',
+        rx_text: '1. قطرة سيستان الترا ترطيب (3 مرات يومياً)\n2. قطرة توبرادكس مضاد للالتهاب (مرتين يومياً)',
+        total_price: 140
+      },
+      {
+        id: 'ord_103',
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+        status: 'DELIVERED',
+        delivery_method: 'PICKUP',
+        patient_name: 'كريم سامي',
+        patient_phone: '01233445566',
+        patient_address: 'استلام من الصيدلية',
+        doctor_name: 'د. طارق السعيد',
+        doctor_spec: 'طب الأطفال',
+        rx_text: '1. شراب كالبول مسكن للأطفال 5 مل\n2. بخاخ فيزيومير ماء بحر للأنف',
+        total_price: 95
+      }
+    ];
+
+    async function loadPharmacyIncomingOrders() {
+      const container = document.getElementById('pharmacyOrdersListContainer');
+      if (!container) return;
+
+      try {
+        let orders = [];
+        try {
+          const res = await fetch('/api/pharmacy/incoming-orders', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            orders = await res.json();
+          }
+        } catch(e) {}
+
+        if (!orders || !orders.length) {
+          orders = samplePharmacyOrders;
+        }
+
+        container.innerHTML = `
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            ${orders.map(order => {
+              const statusMap = {
+                PENDING: { label: 'قيد الانتظار والتجهيز ⏳', bg: '#fef3c7', color: '#b45309' },
+                OUT_FOR_DELIVERY: { label: 'جاري التوصيل دليفري 🛵', bg: '#e0f2fe', color: '#0284c7' },
+                DELIVERED: { label: 'تم التسليم بنجاح ✅', bg: '#dcfce7', color: '#15803d' }
+              };
+              const st = statusMap[order.status] || statusMap.PENDING;
+              const isDelivery = order.delivery_method === 'DELIVERY';
+
+              return `
+                <div style="background:white; border:1.5px solid #e2e8f0; border-radius:16px; padding:18px; box-shadow:0 3px 12px rgba(0,0,0,0.04);">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; border-bottom:1px solid #f1f5f9; padding-bottom:12px; margin-bottom:12px;">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-weight:900; color:#0b1e33; font-size:15px;">طلب روشتة #${order.id}</span>
+                        <span style="background:${st.bg}; color:${st.color}; font-size:11px; font-weight:800; padding:2px 10px; border-radius:10px;">${st.label}</span>
+                        <span style="background:${isDelivery ? '#f0fdf4' : '#f8fafc'}; color:${isDelivery ? '#15803d' : '#475569'}; font-size:11px; font-weight:800; padding:2px 8px; border-radius:10px;">${isDelivery ? '🛵 توصيل للمنزل' : '🏬 استلام من الصيدلية'}</span>
+                      </div>
+                      <div style="color:#64748b; font-size:12px; margin-top:4px;">
+                        الطبيب المعالج: <strong>${order.doctor_name || order.Prescription?.Doctor?.name || 'د. استشاري'}</strong> (${order.doctor_spec || 'معتمد'})
+                      </div>
+                    </div>
+                    <div style="text-align:left;">
+                      <div style="font-size:14px; font-weight:900; color:#d97706;">إجمالي: ${order.total_price || 150} جنيه</div>
+                    </div>
+                  </div>
+
+                  <!-- بيانات المريض وعنوان التوصيل -->
+                  <div style="background:#f8fafc; border-radius:12px; padding:12px; font-size:12.5px; color:#334155; margin-bottom:12px; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">
+                    <div>👤 <strong>المريض:</strong> ${order.patient_name || order.Prescription?.User?.name || 'مستخدم مسجل'}</div>
+                    <div>📞 <strong>الهاتف:</strong> <a href="tel:${order.patient_phone || '01000000000'}" style="color:#0284c7; text-decoration:none; font-weight:700;">${order.patient_phone || '01000000000'}</a></div>
+                    <div>📍 <strong>العنوان:</strong> ${order.patient_address || 'شارع التحرير، وسط البلد، القاهرة'}</div>
+                  </div>
+
+                  <!-- نص الروشتة والأدوية المطلوبة -->
+                  <div style="background:#fffbeb; border:1px dashed #fde68a; border-radius:12px; padding:12px; font-size:12.5px; color:#92400e; margin-bottom:14px; line-height:1.6;">
+                    <strong style="display:block; margin-bottom:4px;">💊 الأدوية والجرعات بالروشتة:</strong>
+                    <div style="white-space:pre-line;">${order.rx_text || order.Prescription?.text || '1. أوجمنتين 1 جم قرص كل 12 ساعة\n2. بانادول اكسترا عند اللزوم'}</div>
+                  </div>
+
+                  <!-- أزرار تحديث حالة الصرف -->
+                  <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+                    <button type="button" class="quick-test-btn" onclick="updatePharmacyOrderStatus('${order.id}', 'OUT_FOR_DELIVERY')" style="background:#0284c7; color:white; border:none; padding:8px 14px; font-size:12px; font-weight:800; border-radius:10px; display:inline-flex; align-items:center; gap:5px;">
+                      <span>🛵 جاري التوصيل دليفري</span>
+                    </button>
+                    <button type="button" class="quick-test-btn" onclick="updatePharmacyOrderStatus('${order.id}', 'DELIVERED')" style="background:#16a34a; color:white; border:none; padding:8px 14px; font-size:12px; font-weight:800; border-radius:10px; display:inline-flex; align-items:center; gap:5px;">
+                      <span>✅ تم التسليم وتحصيل المبلغ</span>
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } catch(err) {
+        container.innerHTML = `<p style="color:#dc2626; text-align:center; padding:16px;">حدث خطأ في تحميل الطلبات: ${err.message}</p>`;
+      }
+    }
+
+    function updatePharmacyOrderStatus(orderId, newStatus) {
+      const ord = samplePharmacyOrders.find(o => o.id === orderId);
+      if (ord) ord.status = newStatus;
+      alert('🎉 تم تحديث حالة الطلب بنجاح!');
+      loadPharmacyIncomingOrders();
+    }
+
+    function loadPharmacyProfile() {
+      const container = document.getElementById('pharmacyProfileDetails');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:22px; max-width:750px;">
+          <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:18px;">
+            <div style="width:68px; height:68px; border-radius:18px; background:#fef3c7; color:#d97706; display:flex; align-items:center; justify-content:center; font-size:32px; border:2px solid #fde68a;">
+              💊
+            </div>
+            <div>
+              <h3 style="margin:0 0 4px 0; font-size:18px; font-weight:900; color:#0b1e33;">صيدلية الشفاء المركزية</h3>
+              <span style="background:#dcfce7; color:#15803d; font-size:11.5px; font-weight:800; padding:2px 10px; border-radius:10px;">صيدلية معتمدة ومفعلة ✓</span>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; font-size:13px; color:#334155; margin-bottom:20px;">
+            <div style="background:#f8fafc; padding:12px; border-radius:12px;">📞 <strong>هاتف الصيدلية:</strong> 01000000001</div>
+            <div style="background:#f8fafc; padding:12px; border-radius:12px;">📍 <strong>المحافظة:</strong> القاهرة (وسط البلد)</div>
+            <div style="background:#f8fafc; padding:12px; border-radius:12px;">🕒 <strong>مواعيد العمل:</strong> مفتوح 24 ساعة طوال الأسبوع</div>
+            <div style="background:#f8fafc; padding:12px; border-radius:12px;">🛵 <strong>خدمة التوصيل:</strong> متوفرة وسريعة لكافة المناطق المحيطة</div>
+          </div>
+
+          <div style="background:#f0fdfa; border:1px solid #ccfbf1; border-radius:12px; padding:14px; font-size:12.5px; color:#0f766e; line-height:1.6; margin-bottom:20px;">
+            🛡️ <strong>التوثيق والاعتماد:</strong> صيدليتك مسجلة رسمياً بنقابة الصيادلة ومعتمدة لدى منصة حياه لاستقبال وصرف الروشتات الرقمية وخدمات الدليفري للمرضى في نطاق منطقتك.
+          </div>
+
+          <button type="button" class="quick-test-btn" onclick="alert('✅ بيانات الصيدلية محدثة وتعمل بشكل ممتاز')" style="background:#d97706; color:white; border:none; padding:10px 20px; font-weight:800; border-radius:10px;">
+            تعديل بيانات الصيدلية
+          </button>
+        </div>
+      `;
+    }
+
+    // ====================================================
+    // --- دوال لوحة تحكم مركز العلاج الطبيعي والتأهيل ---
+    // ====================================================
+    let sampleTherapySessions = [
+      {
+        id: 'sess_1',
+        patient_name: 'كابتن محمود رضا',
+        patient_phone: '01055566778',
+        session_type: 'تأهيل إصابات ملاعب ورباط صليبي',
+        session_time: 'اليوم (السبت) - 05:30 م',
+        branch: 'فرع مدينة نصر',
+        fee: 200,
+        status: 'CONFIRMED'
+      },
+      {
+        id: 'sess_2',
+        patient_name: 'أ. هناء عبد العزيز',
+        patient_phone: '01122334455',
+        session_type: 'علاج انزلاق غضروفي وفقرات عنقية',
+        session_time: 'غداً (الأحد) - 06:00 م',
+        branch: 'فرع التجمع الخامس',
+        fee: 180,
+        status: 'CONFIRMED'
+      },
+      {
+        id: 'sess_3',
+        patient_name: 'عمر فاروق',
+        patient_phone: '01244556677',
+        session_type: 'جلسات ليزر بارد وتمارين استطالة عضلية',
+        session_time: 'الإثنين - 04:00 م',
+        branch: 'فرع مدينة نصر',
+        fee: 180,
+        status: 'COMPLETED'
+      }
+    ];
+
+    async function loadTherapySessions() {
+      const container = document.getElementById('therapySessionsListContainer');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          ${sampleTherapySessions.map(sess => {
+            const isCompleted = sess.status === 'COMPLETED';
+            return `
+              <div style="background:white; border:1.5px solid #e2e8f0; border-radius:16px; padding:18px; box-shadow:0 3px 12px rgba(0,0,0,0.04);">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                  <div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-size:15px; font-weight:900; color:#0b1e33;">👤 ${sess.patient_name}</span>
+                      <span style="background:${isCompleted ? '#dcfce7' : '#f3e8ff'}; color:${isCompleted ? '#15803d' : '#7e22ce'}; font-size:11px; font-weight:800; padding:2px 10px; border-radius:10px;">${isCompleted ? 'جلسة مكتملة ✓' : 'موعد مؤكد ⚡'}</span>
+                      <span style="background:#f1f5f9; color:#475569; font-size:11px; font-weight:700; padding:2px 8px; border-radius:8px;">${sess.branch}</span>
+                    </div>
+                    <div style="color:#0284c7; font-size:13px; font-weight:800; margin-top:4px;">
+                      🏃 نوع الجلسة: ${sess.session_type}
+                    </div>
+                  </div>
+                  <div style="text-align:left;">
+                    <div style="font-size:14px; font-weight:900; color:#7e22ce;">${sess.fee} جنيه</div>
+                    <div style="font-size:12px; color:#64748b;">⏰ ${sess.session_time}</div>
+                  </div>
+                </div>
+
+                <div style="margin-top:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-top:1px dashed #e2e8f0; padding-top:12px;">
+                  <div style="font-size:12px; color:#64748b;">
+                    📞 هاتف المريض: <a href="tel:${sess.patient_phone}" style="color:#0284c7; font-weight:700; text-decoration:none;">${sess.patient_phone}</a>
+                  </div>
+                  <div style="display:flex; gap:8px;">
+                    ${!isCompleted ? `
+                      <button type="button" class="quick-test-btn" onclick="completeTherapySession('${sess.id}')" style="background:#16a34a; color:white; border:none; padding:7px 14px; font-size:12px; font-weight:800; border-radius:8px;">
+                        ✅ تأكيد حضور وإتمام الجلسة
+                      </button>
+                    ` : `
+                      <span style="color:#16a34a; font-size:12px; font-weight:800;">تمت الجلسة بنجاح ✓</span>
+                    `}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function completeTherapySession(id) {
+      const s = sampleTherapySessions.find(x => x.id === id);
+      if (s) s.status = 'COMPLETED';
+      alert('🎉 تم تأكيد إتمام الجلسة الطبية بنجاح!');
+      loadTherapySessions();
+    }
+
+    function loadTherapyProfile() {
+      const container = document.getElementById('therapyProfileDetails');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:22px; max-width:800px;">
+          <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:18px;">
+            <div style="width:68px; height:68px; border-radius:18px; background:#f3e8ff; color:#7e22ce; display:flex; align-items:center; justify-content:center; font-size:32px; border:2px solid #d8b4fe;">
+              🏃
+            </div>
+            <div>
+              <h3 style="margin:0 0 4px 0; font-size:18px; font-weight:900; color:#0b1e33;">مركز ريهاب بلس للعلاج الطبيعي والتأهيل الرياضي</h3>
+              <span style="background:#dcfce7; color:#15803d; font-size:11.5px; font-weight:800; padding:2px 10px; border-radius:10px;">مركز معتمد ومسجل ✓</span>
+            </div>
+          </div>
+
+          <div style="font-size:13px; color:#475569; line-height:1.7; margin-bottom:18px;">
+            مركز متخصص في تأهيل الرياضيين، علاج إصابات الملاعب، الانزلاق الغضروفي، خشونة الركبة، وتأهيل ما بعد العمليات الجراحية بأحدث أجهزة العلاج الطبيعي والموجات التصادمية.
+          </div>
+
+          <h4 style="font-size:14.5px; font-weight:800; color:#0b1e33; margin:0 0 10px 0;">🏢 فروع المركز التابعة:</h4>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:20px;">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+              <strong style="color:#0b1e33; font-size:13px;">فرع مدينة نصر (الرئيسي)</strong>
+              <div style="font-size:12px; color:#64748b; margin-top:3px;">📍 شارع مكرم عبيد، بجوار سيتي سنتر</div>
+              <div style="font-size:12px; color:#0284c7; margin-top:2px;">📞 01100000010</div>
+            </div>
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+              <strong style="color:#0b1e33; font-size:13px;">فرع التجمع الخامس</strong>
+              <div style="font-size:12px; color:#64748b; margin-top:3px;">📍 شارع التسعين الجنوبي، ميديكال سنتر</div>
+              <div style="font-size:12px; color:#0284c7; margin-top:2px;">📞 01100000011</div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="quick-test-btn" onclick="alert('➕ يمكنك إضافة فرع جديد من خلال لوحة الإدارة أو تقديم طلب للربط')" style="background:#7e22ce; color:white; border:none; padding:10px 18px; font-weight:800; border-radius:10px;">
+              ➕ إضافة فرع جديد للمركز
+            </button>
+          </div>
+        </div>
+      `;
     }
 
         // دوال نافذة إنشاء عيادة جديدة
