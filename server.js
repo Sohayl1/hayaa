@@ -639,7 +639,7 @@ app.post('/api/auth/verify-promo', (req, res) => {
   }
   return res.status(400).json({
     valid: false,
-    error: 'الكود المدخل غير صالح. يمكنك استخدام الكود التجريبي المجاني: HAYAAFREE للدخول مجاناً 100%!'
+    error: 'الكود الترويجي غير صالح أو منتهي الصلاحية'
   });
 });
 
