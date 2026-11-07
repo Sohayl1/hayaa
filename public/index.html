@@ -4432,18 +4432,10 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div class="form-group">
-            <label class="field-label">البريد الإلكتروني للصيدلية</label>
-            <div class="input-wrapper">
-              <input type="email" id="phEmail" placeholder="pharmacy@example.com" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="field-label">رقم الهاتف / الواتساب</label>
-            <div class="input-wrapper">
-              <input type="tel" id="phPhone" placeholder="01012345678" required>
-            </div>
+        <div class="form-group">
+          <label class="field-label">البريد الإلكتروني للصيدلية</label>
+          <div class="input-wrapper">
+            <input type="email" id="phEmail" placeholder="pharmacy@example.com" required>
           </div>
         </div>
 
@@ -7737,7 +7729,7 @@
                     <div style="font-size:12px; color:#64748b; margin-top:2px;">
                       <span>العنوان: <strong>${ph.address}</strong></span> |
                       <span>المحافظة: <strong>${ph.governorate}</strong></span> |
-                      <span>📞 هاتف: <strong>${ph.phone || 'غير مسجل'}</strong></span>
+                      
                     </div>
                     <div style="font-size:12px; color:#64748b; margin-top:2px;">
                       <span>📧 بريد المسؤول: <strong>${ph.User?.email || ''}</strong></span>
@@ -9764,7 +9756,7 @@
           </div>
 
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; font-size:13px; color:#334155; margin-bottom:20px;">
-            <div style="background:#f8fafc; padding:12px; border-radius:12px;">📞 <strong>هاتف الصيدلية:</strong> 01000000001</div>
+            <div style="background:#f8fafc; padding:12px; border-radius:12px;">🏢 <strong>نوع المنشأة:</strong> صيدلية أهلية معتمدة</div>
             <div style="background:#f8fafc; padding:12px; border-radius:12px;">📍 <strong>المحافظة:</strong> القاهرة (وسط البلد)</div>
             <div style="background:#f8fafc; padding:12px; border-radius:12px;">🕒 <strong>مواعيد العمل:</strong> مفتوح 24 ساعة طوال الأسبوع</div>
             <div style="background:#f8fafc; padding:12px; border-radius:12px;">🛵 <strong>خدمة التوصيل:</strong> متوفرة وسريعة لكافة المناطق المحيطة</div>
@@ -11045,7 +11037,6 @@
               <div style="font-size:12px; color:#475569; margin:8px 0; background:#f8fafc; padding:8px 10px; border-radius:10px; border:1px solid #e2e8f0; line-height:1.5;">
                 <div style="margin-bottom:4px;">📍 <strong>العنوان:</strong> ${ph.address}</div>
                 ${ph.governorate ? `<div style="margin-bottom:4px;">🏛️ <strong>المحافظة:</strong> ${ph.governorate}</div>` : ''}
-                <div>📞 <strong>الهاتف:</strong> <a href="tel:${ph.phone}" style="color:#0284c7; font-weight:800; text-decoration:none;">${ph.phone || 'غير متاح'}</a></div>
               </div>
               <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
                 <button onclick="callPharmacyOrder('${ph.id}', '${ph.name.replace(/'/g, "\\'")}')" style="background:#00897b; color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer; font-family:inherit; transition:0.2s; display:flex; align-items:center; justify-content:center; gap:6px;">
@@ -11272,15 +11263,8 @@
                   <span style="color:#00897b;">📍</span>
                   <span>${ph.address}</span>
                 </div>
-                <div style="display:flex; align-items:center; gap:6px;">
-                  <span style="color:#0284c7;">📞</span>
-                  <a href="tel:${ph.phone}" style="color:#0284c7; font-weight:700; text-decoration:none;">${ph.phone || 'غير متاح'}</a>
-                </div>
               </div>
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                <a href="tel:${ph.phone}" style="flex:1; min-width:80px; text-align:center; padding:9px 10px; background:#e0f2fe; color:#0369a1; border-radius:10px; font-weight:800; font-size:12px; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:4px;">
-                  📞 اتصل
-                </a>
                 ${hasCoords ? `
                   <button type="button" class="quick-test-btn" style="flex:1; min-width:95px; padding:9px 10px; font-size:12px; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:10px; font-weight:800;" onclick="focusPharmacyOnMap('${ph.id}', ${ph.latitude}, ${ph.longitude})">
                     📍 بالخريطة
