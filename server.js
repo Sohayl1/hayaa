@@ -58,10 +58,18 @@ const pendingVerifications = new Map();
 const multer = require('multer');
 const fs = require('fs');
 
-const uploadDir = path.join(__dirname, 'public', 'uploads', 'doctors');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Vercel's function bundle is read-only. Keep new uploads in its writable
+// temporary directory there; local deployments continue using public/uploads.
+const uploadsRoot = process.env.VERCEL
+  ? path.join('/tmp', 'hayaa-uploads')
+  : path.join(__dirname, 'public', 'uploads');
+const getUploadDir = (name) => {
+  const dir = path.join(uploadsRoot, name);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+};
+
+const uploadDir = getUploadDir('doctors');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
@@ -106,10 +114,7 @@ const uploadDoctorPhotos = multer({
 ]);
 
 // مجلد وميدلوير رفع إيصالات وسكرين شوت التحويل (فودافون كاش وإنستاباي)
-const receiptsDir = path.join(__dirname, 'public', 'uploads', 'receipts');
-if (!fs.existsSync(receiptsDir)) {
-  fs.mkdirSync(receiptsDir, { recursive: true });
-}
+const receiptsDir = getUploadDir('receipts');
 const receiptStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, receiptsDir),
   filename: (req, file, cb) => {
@@ -130,11 +135,9 @@ const uploadReceipt = multer({
 });
 
 // مجلد وميدلوير رفع مستندات الصيدليات ومراكز العلاج الطبيعي
-const pharmacyDocsDir = path.join(__dirname, 'public', 'uploads', 'pharmacies');
-if (!fs.existsSync(pharmacyDocsDir)) fs.mkdirSync(pharmacyDocsDir, { recursive: true });
+const pharmacyDocsDir = getUploadDir('pharmacies');
 
-const therapyDocsDir = path.join(__dirname, 'public', 'uploads', 'therapy');
-if (!fs.existsSync(therapyDocsDir)) fs.mkdirSync(therapyDocsDir, { recursive: true });
+const therapyDocsDir = getUploadDir('therapy');
 
 const makeDocStorage = (dir) => multer.diskStorage({
   destination: (req, file, cb) => cb(null, dir),
@@ -261,6 +264,11 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
 // Middleware
 app.use(cors());
 app.use(express.json());
+// Serve files uploaded by the current Vercel function instance. Fall through
+// so older files bundled under public/uploads remain available as static files.
+if (process.env.VERCEL) {
+  app.use('/uploads', express.static(uploadsRoot));
+}
 app.use(express.static(path.join(__dirname, 'public')));
 
 // نقطة فحص الحالة السحابية (Health Check) لمنصات النشر مثل Render, Railway, Fly.io
