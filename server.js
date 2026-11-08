@@ -1594,8 +1594,8 @@ app.get('/api/clinics/:id', async (req, res) => {
 // 3. إنشاء عيادة / مجمع عيادات جديد (مقتصر على إدارة المنصة وإدارة المجمعات فقط)
 app.post('/api/clinics', authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'عذراً، صلاحية إنشاء العيادات والمجمعات الطبية مقتصرة فقط على إدارة المنصة وإدارة المجمع الطبي.' });
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'DOCTOR') {
+      return res.status(403).json({ error: 'عذراً، صلاحية إنشاء العيادات مقتصرة فقط على الأطباء وإدارة المنصة.' });
     }
 
     const { name, description, specialty, governorate, address, phone, clinic_photo } = req.body;

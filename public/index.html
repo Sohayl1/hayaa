@@ -96,6 +96,53 @@
         if (!fbUser) return;
 
         const role = (typeof currentAuthRole !== 'undefined' && currentAuthRole) ? currentAuthRole : 'PATIENT';
+
+        // 1. إذا اختار المستخدم صفة طبيب: نتحقق هل هو طبيب مسجل مسبقاً، وإلا نوجهه لنموذج الاعتماد
+        if (role === 'DOCTOR') {
+          let isExistingDoctor = false;
+          try {
+            const checkRes = await fetch('/api/auth/google-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: fbUser.email,
+                name: fbUser.displayName || 'مستخدم Google',
+                photoUrl: fbUser.photoURL || '',
+                uid: fbUser.uid,
+                role: 'DOCTOR',
+                checkOnly: true
+              })
+            });
+            const checkData = await checkRes.json();
+            if (checkData.isExistingDoctor && checkData.user) {
+              isExistingDoctor = true;
+              token = checkData.token;
+              currentUser = checkData.user;
+              localStorage.setItem('token', token);
+              localStorage.setItem('user', JSON.stringify(currentUser));
+              showDashboard();
+              return;
+            }
+          } catch(e) {}
+
+          // طبيب جديد: لا يتخطى الإجراءات نهائياً!
+          const loginModalEl = document.getElementById('loginModal');
+          if (loginModalEl) loginModalEl.style.display = 'none';
+          if (typeof openDoctorRegisterModal === 'function') openDoctorRegisterModal();
+          
+          const docNameEl = document.getElementById('docName');
+          const docEmailEl = document.getElementById('docEmail');
+          if (docNameEl) docNameEl.value = fbUser.displayName ? ('د. ' + fbUser.displayName.replace(/^د\.\s*/, '')) : '';
+          if (docEmailEl) {
+            docEmailEl.value = fbUser.email;
+            docEmailEl.readOnly = true;
+            docEmailEl.style.background = '#f1f5f9';
+          }
+          alert('🌟 مرحباً د. ' + (fbUser.displayName || '') + '!\nتم ربط وتوثيق بريدك الإلكتروني بنجاح عبر Google.\nيرجى استكمال بيانات الطبيب (التخصص، رقم الهاتف، بيانات العيادة، والمستندات) لاعتماد وتفعيل حسابك.');
+          return;
+        }
+
+        // 2. إذا كان مريضاً:
         const serverRes = await fetch('/api/auth/google-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -145,7 +192,19 @@
         if (document.getElementById('registerModal')) {
           document.getElementById('registerModal').style.display = 'none';
         }
+        const loginModal = document.getElementById('loginModal');
+        if (loginModal) loginModal.style.display = 'none';
+
         showDashboard();
+
+        // فحص ما إذا كان رقم الهاتف أو المحافظة غير مكتمل في حساب المريض
+        if (!currentUser.phone || currentUser.phone.trim() === '') {
+          setTimeout(() => {
+            if (typeof openCompleteGoogleProfileModal === 'function') {
+              openCompleteGoogleProfileModal();
+            }
+          }, 600);
+        }
       } catch (err) {
         if (err.code === 'auth/popup-closed-by-user') {
           console.log('Popup closed by user');
@@ -2983,7 +3042,7 @@
             <form onsubmit="handleChangePasswordSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
               <div>
                 <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:4px;">كلمة المرور الحالية</label>
-                <input type="password" id="drawerInputOldPass" required placeholder="••••••••" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+                <input type="password" id="drawerInputOldPass" placeholder="••••••••" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
               </div>
               <div>
                 <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:4px;">كلمة المرور الجديدة</label>
@@ -5829,7 +5888,7 @@
       },
       {
         "id": "c2",
-        "user_id": "9df4dcc8-5683-4fba-aa0b-85d16c5b4d7d",
+        "user_id": "doc_pediatric_youssef_771",
         "name": "عيادة براعم المستقبل لطب الأطفال",
         "specialty": "طب الأطفال وحديثي الولادة",
         "governorate": "الجيزة",
@@ -6297,7 +6356,7 @@
         return;
       }
       const btn = document.getElementById('btnChangePassword');
-      const currentPassword = document.getElementById('drawerInputOldPass').value;
+      const currentPassword = (document.getElementById('drawerInputOldPass')?.value || '').trim();
       const newPassword = document.getElementById('drawerInputNewPass').value;
       const confirmPassword = document.getElementById('drawerInputConfirmPass').value;
 
@@ -7420,7 +7479,47 @@
         const tomorrow = getTomorrowArabicDay();
         const daysOrder = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 
-        container.innerHTML = clinics.map(clinic => {
+        // تصفية العيادات: الطبيب يرى ويدير عيادته الخاصة فقط ولا يتحكم في عيادات الأطباء الآخرين
+        let myClinics = clinics;
+        if (currentUser && currentUser.role !== 'ADMIN') {
+          myClinics = clinics.filter(clinic => {
+            // 1. هل الطبيب هو منشئ أو مالك العيادة؟
+            if (clinic.user_id && clinic.user_id === currentUser.id) return true;
+
+            // 2. هل اسم العيادة يطابق اسم عيادة الطبيب المسجلة؟
+            if (currentUser.clinic_name && clinic.name && clinic.name.trim().toLowerCase() === currentUser.clinic_name.trim().toLowerCase()) return true;
+
+            // 3. هل الطبيب مناوب في هذه العيادة ومطابق للاسم أو الـ ID؟
+            const schedules = clinic.schedules || [];
+            return schedules.some(s => {
+              const doc = s.Doctor;
+              if (!doc) return false;
+              const cleanDocName = (doc.name || '').replace(/^د\.\s*/, '').trim();
+              const cleanCurName = (currentUser.name || '').replace(/^د\.\s*/, '').trim();
+              return (doc.id === currentUser.id || doc.user_id === currentUser.id || (cleanDocName && cleanCurName && cleanDocName === cleanCurName));
+            });
+          });
+        }
+
+        if (!myClinics || !myClinics.length) {
+          container.innerHTML = `
+            <div style="background:white; border:1.5px dashed #cbd5e1; border-radius:18px; padding:36px 20px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,0.02); margin-bottom:20px;">
+              <div style="width:58px; height:58px; border-radius:16px; background:#e0f2fe; color:#0284c7; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:30px;">
+                🏥
+              </div>
+              <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0 0 6px 0;">لا توجد عيادة مرتبطة بحسابك حالياً</h3>
+              <p style="font-size:12.5px; color:#64748b; margin:0 auto 18px auto; max-width:440px; line-height:1.6;">
+                بإمكانك كطبيب معتمد إضافة وتسجيل عيادتك الخاصة لتحديد ساعات العمل وجدول كشوفاتك ومناوباتك الأسبوعية.
+              </p>
+              <button type="button" class="quick-test-btn" onclick="openAddDoctorClinicModal()" style="background:#0284c7; color:white; border:none; padding:10px 22px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(2,132,199,0.3);">
+                <span>➕ تسجيل وإضافة بيانات عيادتي ومواعيدها</span>
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = myClinics.map(clinic => {
           const schedules = clinic.schedules || [];
           const todaySch = schedules.find(s => s.day_of_week === today);
           const tomorrowSch = schedules.find(s => s.day_of_week === tomorrow);
@@ -7537,6 +7636,126 @@
         }).join('');
       } catch (err) {
         container.innerHTML = '<div style="color:red; text-align:center; padding:20px;">تعذر تحميل جدول مواعيد العيادة: ' + err.message + '</div>';
+      }
+    }
+
+    
+    function openCompleteGoogleProfileModal() {
+      const modal = document.getElementById('completeGoogleProfileModal');
+      if (!modal) return;
+      if (currentUser && currentUser.phone) {
+        document.getElementById('googleCompletePhone').value = currentUser.phone;
+      }
+      if (currentUser && currentUser.governorate) {
+        document.getElementById('googleCompleteGov').value = currentUser.governorate;
+      }
+      modal.style.display = 'flex';
+    }
+
+    function closeCompleteGoogleProfileModal() {
+      const modal = document.getElementById('completeGoogleProfileModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function handleCompleteGoogleProfileSubmit(e) {
+      e.preventDefault();
+      const phone = document.getElementById('googleCompletePhone').value.trim();
+      const governorate = document.getElementById('googleCompleteGov').value;
+      const pass = document.getElementById('googleCompletePass').value.trim();
+      const btn = document.getElementById('btnSubmitGoogleComplete');
+
+      if (!phone) {
+        alert('يرجى إدخال رقم الهاتف');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = 'جاري الحفظ... ⏳';
+
+      try {
+        const payload = { phone, governorate };
+        if (pass && pass.length >= 6) payload.password = pass;
+
+        const res = await fetch('/api/auth/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          currentUser.phone = phone;
+          currentUser.governorate = governorate;
+          localStorage.setItem('user', JSON.stringify(currentUser));
+          closeCompleteGoogleProfileModal();
+          alert('🎉 تم حفظ بياناتك بنجاح!');
+          showDashboard();
+        } else {
+          alert('❌ ' + (data.error || 'تعذر حفظ البيانات'));
+        }
+      } catch (err) {
+        currentUser.phone = phone;
+        currentUser.governorate = governorate;
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        closeCompleteGoogleProfileModal();
+        showDashboard();
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 حفظ ومتابعة';
+      }
+    }
+
+    function openAddDoctorClinicModal() {
+      const modal = document.getElementById('addDoctorClinicModal');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeAddDoctorClinicModal() {
+      const modal = document.getElementById('addDoctorClinicModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function handleSubmitAddDoctorClinic(e) {
+      e.preventDefault();
+      const name = document.getElementById('docClinicNameInput').value.trim();
+      const governorate = document.getElementById('docClinicGovInput').value;
+      const address = document.getElementById('docClinicAddressInput').value.trim();
+      const fee = parseInt(document.getElementById('docClinicFeeInput').value) || 150;
+      const btn = document.getElementById('btnSubmitAddClinic');
+
+      btn.disabled = true;
+      btn.innerHTML = 'جاري الحفظ... ⏳';
+
+      try {
+        const res = await fetch('/api/clinics', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            name,
+            governorate,
+            address,
+            specialty: (currentUser && currentUser.specialty) ? getSpecialtyBadge(currentUser.specialty).title : 'عيادة تخصصية',
+            custom_fee: fee
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('🎉 تم إنشاء وتفعيل عيادتك بنجاح! يمكنك الآن تحديد ومراجعة مواعيد الكشوفات.');
+          closeAddDoctorClinicModal();
+          loadDoctorClinicsTab();
+        } else {
+          alert('❌ ' + (data.error || 'تعذر إنشاء العيادة'));
+        }
+      } catch (err) {
+        alert('خطأ: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 حفظ وتفعيل العيادة';
       }
     }
 
@@ -12237,6 +12456,115 @@
           <p style="margin:4px 0;"><strong>• النزيف الحاد:</strong> اضغط بشدة وبشاش أو قماش نظيف مباشرة على مكان الجرح دون رفع الضغط لمدة 5 دقائق على الأقل حتى وصول الدعم الطبي.</p>
         </div>
       </details>
+    </div>
+  </div>
+
+
+  <!-- مودال استكمال بيانات حساب Google (الهاتف والمحافظة وكلمة المرور) -->
+  <div class="modal-overlay" id="completeGoogleProfileModal" style="display:none;" onclick="if(event.target===this)closeCompleteGoogleProfileModal()">
+    <div class="modal-card" style="max-width:440px; width:92%; background:white; border-radius:20px; padding:24px; box-shadow:0 20px 50px rgba(0,0,0,0.25);" onclick="event.stopPropagation()">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="width:52px; height:52px; border-radius:14px; background:#e0f2fe; color:#0284c7; display:flex; align-items:center; justify-content:center; margin:0 auto 10px; font-size:26px;">
+          ✨
+        </div>
+        <h3 style="font-size:18px; font-weight:800; color:#0b1e33; margin:0 0 4px 0;">استكمال بيانات حسابك</h3>
+        <p style="font-size:12px; color:#64748b; margin:0; line-height:1.5;">
+          يرجى إدخال رقم الهاتف والمحافظة لتأكيد حجوزاتك، ويمكنك تعيين كلمة مرور لتسجيل الدخول المباشر بدون Google لاحقاً.
+        </p>
+      </div>
+
+      <form onsubmit="handleCompleteGoogleProfileSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label class="field-label" style="font-size:12px; font-weight:700; margin-bottom:4px; display:block;">رقم الهاتف / الواتساب <span style="color:#ef4444;">*</span></label>
+          <input type="tel" id="googleCompletePhone" placeholder="01012345678" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+        </div>
+        <div>
+          <label class="field-label" style="font-size:12px; font-weight:700; margin-bottom:4px; display:block;">المحافظة <span style="color:#ef4444;">*</span></label>
+          <select id="googleCompleteGov" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+            <option value="القاهرة">القاهرة</option>
+            <option value="الجيزة">الجيزة</option>
+            <option value="الإسكندرية">الإسكندرية</option>
+            <option value="الدقهلية">الدقهلية (المنصورة)</option>
+            <option value="الغربية">الغربية (طنطا)</option>
+            <option value="الشرقية">الشرقية (الزقازيق)</option>
+            <option value="القليوبية">القليوبية</option>
+            <option value="البحيرة">البحيرة</option>
+            <option value="المنوفية">المنوفية</option>
+            <option value="كفر الشيخ">كفر الشيخ</option>
+            <option value="الفيوم">الفيوم</option>
+            <option value="بني سويف">بني سويف</option>
+            <option value="المنيا">المنيا</option>
+            <option value="أسيوط">أسيوط</option>
+            <option value="سوهاج">سوهاج</option>
+            <option value="قنا">قنا</option>
+            <option value="الأقصر">الأقصر</option>
+            <option value="أسوان">أسوان</option>
+            <option value="بورسعيد">بورسعيد</option>
+            <option value="الإسماعيلية">الإسماعيلية</option>
+            <option value="السويس">السويس</option>
+            <option value="دمياط">دمياط</option>
+            <option value="البحر الأحمر">البحر الأحمر</option>
+            <option value="مطروح">مطروح</option>
+            <option value="شمال سيناء">شمال سيناء</option>
+            <option value="جنوب سيناء">جنوب سيناء</option>
+            <option value="الوادي الجديد">الوادي الجديد</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label" style="font-size:12px; font-weight:700; margin-bottom:4px; display:block;">تعيين كلمة مرور لحسابك (اختياري)</label>
+          <input type="password" id="googleCompletePass" minlength="6" placeholder="أدخل 6 أحرف على الأقل" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          <span style="font-size:11px; color:#64748b; margin-top:2px; display:block;">اختياري: لتسجيل الدخول بالإيميل وكلمة المرور مستقبلاً.</span>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <button type="submit" id="btnSubmitGoogleComplete" style="flex:1; background:#00897b; color:white; border:none; padding:11px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit;">
+            💾 حفظ ومتابعة
+          </button>
+          <button type="button" onclick="closeCompleteGoogleProfileModal()" style="background:#f1f5f9; color:#475569; border:none; padding:11px 16px; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:inherit;">
+            تخطي الآن
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- مودال تسجيل وإضافة عيادة جديدة خاصة بالطبيب -->
+  <div class="modal-overlay" id="addDoctorClinicModal" style="display:none;" onclick="if(event.target===this)closeAddDoctorClinicModal()">
+    <div class="modal-card" style="max-width:480px; width:92%; background:white; border-radius:20px; padding:24px; box-shadow:0 20px 50px rgba(0,0,0,0.25);" onclick="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0;">➕ تسجيل وإضافة بيانات عيادتي</h3>
+        <button type="button" onclick="closeAddDoctorClinicModal()" style="background:none; border:none; font-size:18px; cursor:pointer; color:#64748b;">✕</button>
+      </div>
+      <form onsubmit="handleSubmitAddDoctorClinic(event)" style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">اسم العيادة</label>
+          <input type="text" id="docClinicNameInput" placeholder="مثال: عيادة د. محمد للقلب والأوعية" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">المحافظة</label>
+            <select id="docClinicGovInput" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+              <option value="القاهرة">القاهرة</option>
+              <option value="الجيزة">الجيزة</option>
+              <option value="الإسكندرية">الإسكندرية</option>
+              <option value="الدقهلية">الدقهلية</option>
+              <option value="الغربية">الغربية</option>
+              <option value="الشرقية">الشرقية</option>
+              <option value="القليوبية">القليوبية</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">سعر الكشف (ج)</label>
+            <input type="number" id="docClinicFeeInput" placeholder="150" value="150" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          </div>
+        </div>
+        <div>
+          <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">العنوان بالتفصيل</label>
+          <input type="text" id="docClinicAddressInput" placeholder="الشارع، البرج الطبي، الدور" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+        </div>
+        <button type="submit" id="btnSubmitAddClinic" style="background:#0284c7; color:white; border:none; padding:11px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; margin-top:4px;">
+          💾 حفظ وتفعيل العيادة
+        </button>
+      </form>
     </div>
   </div>
 
