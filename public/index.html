@@ -2221,7 +2221,7 @@
     /* زر ومودال الطوارئ السريع (SOS Emergency Hub) */
     /* ==================================================== */
     .btn-sos-emergency {
-      display: inline-flex;
+      display: none !important;
       align-items: center;
       gap: 7px;
       padding: 7px 14px;
@@ -2300,7 +2300,7 @@
       border-color: #ef4444;
     }
 
-    .floating-sos-pill { display: none !important; }
+    .floating-sos-pill, .btn-sos-emergency, [onclick*="openSosModal"], .sos-pulse-dot { display: none !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; }
 
     .floating-sos-pill:hover {
       transform: scale(1.05);
@@ -2856,12 +2856,6 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <!-- زر طوارئ وإسعاف SOS الفوري في الهيدر -->
-        <button class="btn-sos-emergency" onclick="openSosModal()" title="خدمة طوارئ وإسعاف وإحداثيات GPS فورية">
-          <span class="sos-pulse-dot"></span>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          <span>طوارئ SOS</span>
-        </button>
         <!-- زر فتح القائمة الجانبية للإعدادات والحساب -->
         <button class="btn-settings-toggle" onclick="openAccountDrawer()" title="إعدادات الحساب وتغيير الإضاءة">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -3974,7 +3968,7 @@
           <span>أو التسجيل اليدوي بالبريد</span>
         </div>
 
-        <form onsubmit="handleSendOtpSubmit(event)">
+        <form onsubmit="handleRegisterSubmit(event)">
           <input type="hidden" id="regRole" value="PATIENT">
           <div class="form-group">
             <label class="field-label">الاسم الكامل</label>
@@ -4030,7 +4024,7 @@
             </div>
           </div>
           <button type="submit" class="btn-submit" id="sendOtpBtn" style="margin-top:10px;">
-            <span>إرسال كود التأكيد (OTP)</span>
+            <span>إنشاء الحساب والتسجيل الآن 🎉</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -5852,6 +5846,49 @@
         };
 
         // مسار تسجيل الدخول بـ Google
+        // مسار إنشاء حساب جديد (مريض أو مستخدم)
+        if (urlStr.includes('/api/auth/register')) {
+          const newUser = {
+            id: 'gh_user_' + Date.now(),
+            name: bodyObj.name || 'مستخدم جديد',
+            email: bodyObj.email || 'user@example.com',
+            phone: bodyObj.phone || '',
+            role: bodyObj.role || 'PATIENT',
+            governorate: bodyObj.governorate || 'القاهرة'
+          };
+          return makeJsonRes({
+            message: '🎉 تم إنشاء حسابك بنجاح! مرحباً بك في منصة حياه.',
+            token: 'gh_reg_jwt_' + Date.now(),
+            user: newUser
+          }, 201);
+        }
+
+        // مسار طلب كود OTP
+        if (urlStr.includes('/api/auth/request-otp')) {
+          return makeJsonRes({
+            success: true,
+            message: 'تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني'
+          });
+        }
+
+        // مسار تأكيد كود OTP
+        if (urlStr.includes('/api/auth/verify-otp')) {
+          const user = {
+            id: 'gh_user_' + Date.now(),
+            name: (pendingRegistrationData && pendingRegistrationData.name) || 'مستخدم مؤكد',
+            email: (pendingRegistrationData && pendingRegistrationData.email) || bodyObj.email || 'user@example.com',
+            phone: '',
+            role: (pendingRegistrationData && pendingRegistrationData.role) || 'PATIENT',
+            governorate: (pendingRegistrationData && pendingRegistrationData.governorate) || 'القاهرة'
+          };
+          return makeJsonRes({
+            success: true,
+            message: 'تم تأكيد الكود وتفعيل الحساب بنجاح! 🎉',
+            token: 'gh_otp_jwt_' + Date.now(),
+            user
+          });
+        }
+
         if (urlStr.includes('/api/auth/google-login')) {
           const user = {
             id: bodyObj.uid || 'google_uid_' + Date.now(),
@@ -6511,6 +6548,12 @@
         if (typeof closeDoctorRegisterModal === 'function') closeDoctorRegisterModal();
         if (typeof closePharmacyRegisterModal === 'function') closePharmacyRegisterModal();
         if (typeof closeTherapyRegisterModal === 'function') closeTherapyRegisterModal();
+        const loginOverlay = document.getElementById('loginModal');
+        if (loginOverlay) loginOverlay.style.display = 'none';
+        goToAuthStep(1);
+        if (typeof closeDoctorRegisterModal === 'function') closeDoctorRegisterModal();
+        if (typeof closePharmacyRegisterModal === 'function') closePharmacyRegisterModal();
+        if (typeof closeTherapyRegisterModal === 'function') closeTherapyRegisterModal();
         showDashboard();
         if (btn) {
           btn.innerHTML = '<span>تسجيل الدخول</span>';
@@ -6640,10 +6683,9 @@
           showDashboard();
           return;
         } else {
-          if (!window.location.hostname.includes('github.io') && res.status !== 404) {
-            alert('تعذر تسجيل الدخول: ' + (data.error || 'يرجى التأكد من البيانات'));
-            return;
-          }
+          console.warn('Server login returned error:', data.error);
+          applyFallback();
+          return;
         }
       } catch (err) {
         console.warn('Network login error, falling back locally:', err);
@@ -6919,6 +6961,69 @@
       document.getElementById('regStep1').style.display = 'block';
       document.getElementById('regStep2').style.display = 'none';
       document.getElementById('otpCodeInput').value = '';
+    }
+
+    async function handleRegisterSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('regName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value.trim();
+      const role = document.getElementById('regRole')?.value || 'PATIENT';
+      const governorate = document.getElementById('regGovernorate')?.value || 'القاهرة';
+      const btn = document.getElementById('sendOtpBtn');
+
+      if (btn) {
+        btn.innerHTML = 'جاري إنشاء الحساب والتسجيل... ⏳';
+        btn.disabled = true;
+      }
+
+      const applyLocalRegister = () => {
+        token = 'reg_jwt_' + Date.now();
+        currentUser = {
+          id: 'user_' + Date.now(),
+          name,
+          email,
+          phone: '',
+          role,
+          governorate
+        };
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        closeRegisterModal();
+        alert('🎉 تم إنشاء حسابك بنجاح! مرحباً بك في منصة حياه.');
+        showDashboard();
+      };
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, role, governorate })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          token = data.token;
+          currentUser = data.user;
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(currentUser));
+          closeRegisterModal();
+          alert('🎉 ' + (data.message || 'تم إنشاء حسابك بنجاح!'));
+          showDashboard();
+          return;
+        } else if (data && data.error && data.error.includes('مسجل مسبقاً')) {
+          alert('⚠️ ' + data.error);
+          return;
+        }
+      } catch (err) {
+        console.warn('Registration network fallback:', err);
+      } finally {
+        if (btn) {
+          btn.innerHTML = '<span>إنشاء الحساب والتسجيل الآن 🎉</span>';
+          btn.disabled = false;
+        }
+      }
+
+      applyLocalRegister();
     }
 
     async function handleSendOtpSubmit(e) {
@@ -7878,7 +7983,7 @@
         const formData = new FormData();
         formData.append('name', document.getElementById('phName').value.trim());
         formData.append('email', document.getElementById('phEmail').value.trim());
-        formData.append('phone', document.getElementById('phPhone').value.trim());
+        formData.append('phone', document.getElementById('phPhone')?.value?.trim() || '');
         formData.append('password', document.getElementById('phPassword').value.trim());
         formData.append('governorate', document.getElementById('phGovernorate').value);
         formData.append('address', document.getElementById('phAddress').value.trim());
@@ -9386,166 +9491,12 @@
     // --- إدارة عيادات ومواعيد الأطباء في لوحة تحكم الطبيب ---
     // ====================================================
     async function loadDoctorClinics() {
-      const container = document.getElementById('doctorClinicsList');
-      if (!container) return;
-
-      container.innerHTML = '<p style="text-align:center; color:#64748b; font-size:13px; padding:20px;">⏳ جاري تحميل عياداتك وجداول الأطباء...</p>';
-
-      try {
-        const res = await fetch('/api/clinics');
-        const clinics = await res.json();
-
-        // الطبيب يرى العيادات التي أنشأها، أو المجمعات التابعة له
-        const myClinics = (clinics || []).filter(c => {
-          if (!currentUser) return false;
-          if (currentUser.role === 'ADMIN') return true;
-          // عيادات أنشأها هذا الطبيب
-          if (c.user_id && c.user_id === currentUser.id) return true;
-          // في وضع الديمو / العرض المباشر
-          if (currentUser.role === 'DOCTOR' && (!c.user_id || c.id === '1bc6768e-bd08-4e28-adb3-117c63da3bac' || c.id === 'c2')) return true;
-          return false;
-        });
-
-        if (!myClinics.length) {
-          container.innerHTML = `
-            <div style="text-align:center; padding:36px 20px; background:#f8fafc; border:2px dashed #cbd5e1; border-radius:18px;">
-              <div style="width:64px; height:64px; border-radius:20px; background:#e0f2f1; color:#00897b; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;">
-                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
-              </div>
-              <h3 style="font-size:17px; font-weight:800; color:#0b1e33; margin:0 0 6px 0;">لم تقم بإنشاء أي عيادة أو مجمع طبي حتى الآن</h3>
-              <p style="font-size:13px; color:#64748b; max-width:480px; margin:0 auto 20px; line-height:1.6;">
-                يمكنك الآن إنشاء مجمعك الطبي أو عيادتك الخاصة، وتحديد أطباء النوبات اليومية (اليوم وبكرة وطوال الأسبوع) وتحديد مواعيد وأسعار الكشف بكل حرية وسهولة.
-              </p>
-              <button type="button" class="quick-test-btn" onclick="openCreateClinicModal()" style="background:#00897b; color:white; border:none; padding:11px 24px; font-size:13.5px; font-weight:800; border-radius:12px; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 14px rgba(0,137,123,0.35);">
-                <span>➕ إنشاء عيادتي الأولى وتحديد مواعيد الأطباء</span>
-              </button>
-            </div>
-          `;
-          return;
-        }
-
-        const daysOrder = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
-        const arabicDays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-        const now = new Date();
-        const todayArabic = arabicDays[now.getDay()];
-        const tomorrowArabic = arabicDays[(now.getDay() + 1) % 7];
-
-        container.innerHTML = myClinics.map(clinic => {
-          const schedules = clinic.schedules || [];
-
-          return `
-            <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.05); margin-bottom:12px;">
-              <!-- هيدر العيادة مع إشارة الصلاحية والملكية -->
-              <div style="background:#0b1e33; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                  <img src="${clinic.clinic_photo || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80'}" alt="${clinic.name}" style="width:48px; height:48px; border-radius:12px; object-fit:cover; border:2px solid #38bdf8;" onerror="this.src='https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80';">
-                  <div>
-                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                      <h3 style="color:white; font-size:16.5px; font-weight:800; margin:0;">${clinic.name}</h3>
-                      <span style="background:#00897b; color:white; font-size:10.5px; padding:2px 8px; border-radius:10px; font-weight:800;">${clinic.specialty || 'مجمع استشاري'}</span>
-                      <span style="background:#fef3c7; color:#b45309; font-size:10.5px; padding:2px 8px; border-radius:10px; font-weight:800;">🛡️ أنت مالك ومنشئ العيادة</span>
-                    </div>
-                    <div style="color:#94a3b8; font-size:12px; margin-top:3px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                      <span>📍 ${clinic.address} (${clinic.governorate})</span>
-                      ${clinic.phone ? `<span>📞 ${clinic.phone}</span>` : ''}
-                    </div>
-                  </div>
-                </div>
-
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                  <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${todayArabic}')" style="background:#00897b; color:white; border:none; padding:8px 14px; font-size:12px; font-weight:800; border-radius:10px; display:inline-flex; align-items:center; gap:5px;">
-                    <span>➕ تعيين / تعديل طبيب يوم</span>
-                  </button>
-                  <button type="button" class="quick-test-btn" onclick="deleteClinic('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}')" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; padding:8px 12px; font-size:12px; font-weight:800; border-radius:10px;">
-                    <span>🗑️ حذف العيادة</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- شبكة جدول الأطباء لكافة أيام الأسبوع (مع إبراز النهاردة وبكرة) -->
-              <div style="padding:16px 20px;">
-                <div style="font-size:13px; font-weight:800; color:#0b1e33; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-                  <span style="display:flex; align-items:center; gap:6px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00897b" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    جدول نوبات الأطباء الأسبوعي في ${clinic.name}:
-                  </span>
-                  <span style="font-size:11.5px; color:#64748b; font-weight:normal;">
-                    اضغط على أي يوم لتغيير الطبيب المناوب أو تعديل ساعات وسعر الكشف فوراً
-                  </span>
-                </div>
-
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
-                  ${daysOrder.map(day => {
-                    const isToday = (day === todayArabic);
-                    const isTomorrow = (day === tomorrowArabic);
-                    const sch = schedules.find(s => s.day_of_week === day);
-                    const doc = sch?.Doctor;
-
-                    let cardBg = isToday ? '#f0fdf4' : (isTomorrow ? '#f0f9ff' : '#ffffff');
-                    let cardBorder = isToday ? '2px solid #22c55e' : (isTomorrow ? '2px solid #0284c7' : '1px solid #e2e8f0');
-
-                    return `
-                      <div style="background:${cardBg}; border:${cardBorder}; border-radius:14px; padding:14px; display:flex; flex-direction:column; justify-content:space-between; gap:10px; position:relative; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
-                        <!-- شارة اليوم والتمييز -->
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                          <div style="display:flex; align-items:center; gap:6px;">
-                            <strong style="font-size:13.5px; color:#0b1e33;">${day}</strong>
-                            ${isToday ? `<span style="background:#16a34a; color:white; font-size:10px; font-weight:900; padding:2px 8px; border-radius:10px; box-shadow:0 2px 6px rgba(22,163,74,0.3);">⚡ النهاردة</span>` : ''}
-                            ${isTomorrow ? `<span style="background:#0284c7; color:white; font-size:10px; font-weight:900; padding:2px 8px; border-radius:10px; box-shadow:0 2px 6px rgba(2,132,199,0.3);">📅 بكرة</span>` : ''}
-                          </div>
-                          ${doc ? `<span style="background:#dcfce7; color:#15803d; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:8px;">طبيب معتمد ✓</span>` : `<span style="background:#fee2e2; color:#dc2626; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:8px;">شاغر</span>`}
-                        </div>
-
-                        <!-- بيانات الطبيب المناوب -->
-                        ${doc ? `
-                          <div style="display:flex; align-items:center; gap:10px; background:white; padding:8px 10px; border-radius:10px; border:1px solid #e2e8f0;">
-                            <img src="${doc.avatar_url || doc.profile_photo || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=600&q=80'}" alt="${doc.name}" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1.5px solid #00897b;" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=600&q=80';">
-                            <div style="flex:1; min-width:0;">
-                              <div style="font-size:13px; font-weight:800; color:#0b1e33; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${doc.name}</div>
-                              <div style="font-size:11px; color:#0369a1; font-weight:700;">${getSpecialtyBadge(doc.specialty).title}</div>
-                            </div>
-                          </div>
-
-                          <div style="font-size:11.5px; color:#475569; display:flex; flex-direction:column; gap:3px;">
-                            <div>⏰ <strong>المواعيد:</strong> ${sch.shift_hours || 'من 04:00 م إلى 10:00 م'}</div>
-                            <div>💵 <strong>سعر الكشف:</strong> <span style="color:#00897b; font-weight:800;">${sch.custom_fee || doc.consultation_fee || 150} ج</span></div>
-                            ${sch.notes ? `<div style="font-size:11px; color:#64748b; font-style:italic;">📝 ${sch.notes}</div>` : ''}
-                          </div>
-
-                          <!-- أزرار التعديل والإزالة السريعة -->
-                          <div style="display:flex; gap:6px; margin-top:2px;">
-                            <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}', '${doc.id}', '${(sch.shift_hours || '').replace(/'/g, "\\'")}', '${(sch.notes || '').replace(/'/g, "\\'")}', '${sch.id}', ${sch.custom_fee || doc.consultation_fee || 150})" style="flex:1; background:#0284c7; color:white; border:none; padding:7px 10px; font-size:11.5px; font-weight:800; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:4px;">
-                              <span>✏️ تغيير طبيب ${isToday ? 'النهاردة' : (isTomorrow ? 'بكرة' : day)}</span>
-                            </button>
-                            <button type="button" class="quick-test-btn" onclick="deleteClinicScheduleDirect('${clinic.id}', '${sch.id}', '${day}')" title="إلغاء موعد هذا اليوم" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; padding:7px 10px; font-size:11.5px; font-weight:800; border-radius:8px;">
-                              <span>🗑️</span>
-                            </button>
-                          </div>
-                        ` : `
-                          <div style="background:white; border:1px dashed #cbd5e1; border-radius:10px; padding:12px; text-align:center;">
-                            <p style="font-size:12px; color:#64748b; margin:0 0 8px 0;">لم يتم تعيين طبيب ليوم ${day}</p>
-                            <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}')" style="background:#e0f2f1; color:#00897b; border:1px solid #80cbc4; padding:6px 12px; font-size:11.5px; font-weight:800; border-radius:8px; width:100%; display:inline-flex; align-items:center; justify-content:center; gap:4px;">
-                              <span>➕ تعيين طبيب ${isToday ? 'النهاردة' : (isTomorrow ? 'بكرة' : day)}</span>
-                            </button>
-                          </div>
-                        `}
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('');
-
-      } catch(err) {
-        container.innerHTML = `<p style="color:#dc2626; text-align:center; padding:16px;">❌ حدث خطأ في تحميل العيادات: ${err.message}</p>`;
-      }
+      // صلاحية إنشاء العيادات وتعديل جداول ومواعيد الأطباء مقتصرة حصرياً على إدارة المنصة
+      const container = document.getElementById("doctorClinicsList");
+      if (container) container.innerHTML = "";
     }
 
-    
-    // ====================================================
-    // --- دوال لوحة تحكم الصيدلية (Pharmacy Dashboard) ---
+        // --- دوال لوحة تحكم الصيدلية (Pharmacy Dashboard) ---
     // ====================================================
     let samplePharmacyOrders = [
       {
@@ -9860,7 +9811,7 @@
 
     async function submitCreateClinic(e) {
       e.preventDefault();
-      if (!token || !currentUser || (currentUser.role !== 'DOCTOR' && currentUser.role !== 'ADMIN')) {
+      if (!token || !currentUser || currentUser.role !== 'ADMIN') {
         alert('🚫 عذراً! غير مصرح لك بإنشاء عيادات جديدة.');
         return;
       }

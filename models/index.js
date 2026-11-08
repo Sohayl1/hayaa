@@ -19,11 +19,13 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
 } else {
   // فحص توفر حزمة sqlite3 (لتجنب الانهيار في بيئات Serverless مثل Vercel)
   let sqliteLoaded = false;
-  try {
-    require('sqlite3');
-    sqliteLoaded = true;
-  } catch (err) {
-    sqliteLoaded = false;
+  if (!process.env.VERCEL) {
+    try {
+      require('sqlite3');
+      sqliteLoaded = true;
+    } catch (err) {
+      sqliteLoaded = false;
+    }
   }
 
   if (sqliteLoaded) {
@@ -868,6 +870,7 @@ User.hasMany(Clinic, { foreignKey: 'user_id', onDelete: 'SET NULL' });
 Clinic.belongsTo(User, { foreignKey: 'user_id' });
 
 module.exports = {
+  isMockDb,
   sequelize,
   User,
   Doctor,
