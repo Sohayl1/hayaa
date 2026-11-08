@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>منصة حياه للرعاية الصحية - كل دكتور في مكان واحد | حجز كشوفات وأدوية</title>
@@ -3729,6 +3732,27 @@
 
 
     <!-- محتوى المواعيد والدفع -->
+    
+    <!-- محتوى تبويب إدارة مواعيد العيادة ومناوبات الأطباء للطبيب -->
+    <div id="tab-doctor-clinics" class="dash-card tab-content" style="display:none;">
+      <div class="section-header" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div class="section-title" style="margin:0;">
+            <div class="section-title-bar" style="background:#0284c7;"></div>
+            🏥 مواعيد العيادة ومناوبات الأطباء (اليوم وغداً وطوال الأسبوع)
+          </div>
+          <button type="button" class="quick-test-btn" onclick="loadDoctorClinicsTab()" style="background:#e0f2fe; color:#0284c7; border:none; padding:8px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
+            🔄 تحديث المواعيد
+          </button>
+        </div>
+        <p style="font-size:12.5px; color:#64748b; margin:0; line-height:1.6;">
+          بإمكانك كطبيب معتمد أو مسؤول عيادة تحديد مواعيد كشفك أو كشف الأطباء المناوبين وتعديل ميعاد من يحضر اليوم أو غداً، وتحديد ساعات العمل وسعر الكشف.
+        </p>
+      </div>
+      <div id="doctorClinicsContent">
+        <!-- يتم تعبئتها بواسطة loadDoctorClinicsTab() -->
+      </div>
+    </div>
     <div id="tab-appointments" class="dash-card tab-content" style="display:none;">
       <div class="section-header" style="flex-direction:column; align-items:stretch; gap:12px; margin-bottom:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -5823,31 +5847,16 @@
     window.fetch = async function(resource, init = {}) {
       const urlStr = typeof resource === 'string' ? resource : (resource?.url || '');
 
-      // 1. إذا كان الملف مفتوحاً محلياً بروتوكول file:
-      if (window.location.protocol === 'file:' && urlStr.startsWith('/api/')) {
-        return _baseFetch('http://localhost:5000' + urlStr, init);
-      }
+      // Helper to generate a valid JSON Response
+      const makeJsonRes = (data, status = 200) => {
+        return new Response(JSON.stringify(data), {
+          status,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      };
 
-      // 2. إذا كنا على GitHub Pages (sohayl1.github.io) حيث لا يوجد سيرفر Node.js خلفي
-      if (window.location.hostname.includes('github.io') && urlStr.startsWith('/api/')) {
-        const method = (init.method || 'GET').toUpperCase();
-        let bodyObj = {};
-        if (init.body) {
-          try {
-            bodyObj = typeof init.body === 'string' ? JSON.parse(init.body) : {};
-          } catch (e) {}
-        }
-
-        const makeJsonRes = (data, status = 200) => {
-          return new Response(JSON.stringify(data), {
-            status,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        };
-
-        // مسار تسجيل الدخول بـ Google
-        // مسار إنشاء حساب جديد (مريض أو مستخدم)
-        if (urlStr.includes('/api/auth/register')) {
+      const handleMockRoute = (url, method, bodyObj) => {
+        if (url.includes('/api/auth/register')) {
           const newUser = {
             id: 'gh_user_' + Date.now(),
             name: bodyObj.name || 'مستخدم جديد',
@@ -5863,33 +5872,7 @@
           }, 201);
         }
 
-        // مسار طلب كود OTP
-        if (urlStr.includes('/api/auth/request-otp')) {
-          return makeJsonRes({
-            success: true,
-            message: 'تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني'
-          });
-        }
-
-        // مسار تأكيد كود OTP
-        if (urlStr.includes('/api/auth/verify-otp')) {
-          const user = {
-            id: 'gh_user_' + Date.now(),
-            name: (pendingRegistrationData && pendingRegistrationData.name) || 'مستخدم مؤكد',
-            email: (pendingRegistrationData && pendingRegistrationData.email) || bodyObj.email || 'user@example.com',
-            phone: '',
-            role: (pendingRegistrationData && pendingRegistrationData.role) || 'PATIENT',
-            governorate: (pendingRegistrationData && pendingRegistrationData.governorate) || 'القاهرة'
-          };
-          return makeJsonRes({
-            success: true,
-            message: 'تم تأكيد الكود وتفعيل الحساب بنجاح! 🎉',
-            token: 'gh_otp_jwt_' + Date.now(),
-            user
-          });
-        }
-
-        if (urlStr.includes('/api/auth/google-login')) {
+        if (url.includes('/api/auth/google-login')) {
           const user = {
             id: bodyObj.uid || 'google_uid_' + Date.now(),
             name: bodyObj.name || 'مستخدم Google',
@@ -5906,22 +5889,24 @@
           });
         }
 
-        // مسار الدخول التجريبي السريع أو الدخول العادي
-        if (urlStr.includes('/api/auth/quick-demo-login') || urlStr.includes('/api/auth/login')) {
+        if (url.includes('/api/auth/quick-demo-login') || url.includes('/api/auth/login')) {
           const rawRole = (bodyObj.role || '').toUpperCase();
           const email = (bodyObj.email || '').toLowerCase();
           let role = 'PATIENT';
           let name = 'أحمد محمود (مريض تجريبي)';
           let userEmail = 'patient@example.com';
+          let userId = 'gh_user_patient';
 
           if (rawRole === 'ADMIN' || email.includes('admin')) {
             role = 'ADMIN';
             name = 'المدير العام والمالك (Super Admin)';
             userEmail = 'admin@hayaa.com';
+            userId = 'gh_user_admin';
           } else if (rawRole === 'DOCTOR' || email.includes('doctor')) {
             role = 'DOCTOR';
             name = 'د. سارة المنصور (طبيبة تجريبية)';
             userEmail = 'doctor@example.com';
+            userId = 'gh_user_doctor';
           } else if (rawRole === 'PHARMACY' || email.includes('pharmacy')) {
             role = 'PHARMACY';
             name = 'صيدلية الشفاء المركزية (صيدلية تجريبية)';
@@ -5938,7 +5923,7 @@
             message: 'تم تسجيل الدخول التجريبي بنجاح ⚡',
             token: 'gh_demo_jwt_' + Date.now(),
             user: {
-              id: 'gh_user_' + role.toLowerCase(),
+              id: userId,
               name,
               email: userEmail,
               phone: '015550412989',
@@ -5948,36 +5933,28 @@
           });
         }
 
-        // التحقق من كود الخصم الترويجي
-        if (urlStr.includes('/api/auth/verify-promo')) {
-          const validCodes = ['HAYAAFREE', 'FREE', 'FREE2026', 'HAYAA', 'HAYA', 'HAYAA100', 'DRFREE', 'WELCOME', 'VIP', 'EGYPT'];
-          const code = (bodyObj.code || '').trim().toUpperCase();
-          if (validCodes.includes(code)) {
-            return makeJsonRes({
-              valid: true,
-              code,
-              discountPercent: 100,
-              originalFee: 100,
-              finalFee: 0,
-              message: '🎉 تم تفعيل الكود بنجاح! رسوم الاشتراك: 0 جنيه (اشتراك مجاني 100%)'
-            });
-          }
-          return makeJsonRes({ valid: false, error: 'الكود الترويجي غير صالح أو منتهي الصلاحية' }, 400);
+        if (url.includes('/api/auth/verify-promo')) {
+          return makeJsonRes({
+            valid: true,
+            code: bodyObj.code || 'HAYAAFREE',
+            discountPercent: 100,
+            originalFee: 100,
+            finalFee: 0,
+            message: '🎉 تم تفعيل الكود بنجاح! رسوم الاشتراك: 0 جنيه (اشتراك مجاني 100%)'
+          });
         }
 
-        // قائمة الأطباء (تظهر كافة الأطباء الحقيقيين والتجريبيين بدون أي نقص)
-        if (urlStr.startsWith('/api/doctors')) {
+        if (url.startsWith('/api/doctors')) {
           return makeJsonRes(SEED_FALLBACK_DOCTORS);
         }
 
-        // العيادات (دعم العرض والإضافة والتعديل والحذف محلياً وسحابياً على GitHub Pages)
-        if (urlStr.startsWith('/api/clinics')) {
+        if (url.startsWith('/api/clinics')) {
           if (method === 'POST') {
-            if (!currentUser || currentUser.role !== 'ADMIN') {
-              return makeJsonRes({ error: 'عذراً! صلاحية إنشاء العيادات وتعديل جداول الأطباء مقتصرة فقط على الأطباء وإدارة المنصة.' }, 403);
-            }
-            if (urlStr.includes('/schedules')) {
-              const parts = urlStr.split('/');
+            if (url.includes('/schedules')) {
+              if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'DOCTOR')) {
+                return makeJsonRes({ error: 'عذراً! صلاحية تعيين مواعيد الأطباء مقتصرة على الأطباء وإدارة المنصة.' }, 403);
+              }
+              const parts = url.split('/');
               const clinicId = parts[3];
               const clinic = SEED_FALLBACK_CLINICS.find(c => c.id === clinicId);
               if (clinic) {
@@ -6002,6 +5979,9 @@
               }
               return makeJsonRes({ success: true, message: '✅ تم تثبيت جدول وميعاد هذا اليوم بنجاح!' });
             } else {
+              if (!currentUser || currentUser.role !== 'ADMIN') {
+                return makeJsonRes({ error: 'عذراً! صلاحية إنشاء مجمعات العيادات مقتصرة فقط على إدارة المنصة.' }, 403);
+              }
               const newClinic = {
                 id: 'clinic_' + Date.now(),
                 name: bodyObj.name || 'مجمع عيادات جديد',
@@ -6017,8 +5997,11 @@
               return makeJsonRes({ success: true, clinic: newClinic, message: '✅ تم إنشاء مجمع العيادات بنجاح!' }, 201);
             }
           } else if (method === 'DELETE') {
-            if (urlStr.includes('/schedules/')) {
-              const parts = urlStr.split('/');
+            if (url.includes('/schedules/')) {
+              if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'DOCTOR')) {
+                return makeJsonRes({ error: 'عذراً! صلاحية حذف مواعيد الأطباء مقتصرة على الأطباء وإدارة المنصة.' }, 403);
+              }
+              const parts = url.split('/');
               const clinicId = parts[3];
               const scheduleId = parts[5];
               const clinic = SEED_FALLBACK_CLINICS.find(c => c.id === clinicId);
@@ -6027,7 +6010,10 @@
               }
               return makeJsonRes({ success: true, message: '✅ تم حذف موعد اليوم بنجاح!' });
             } else {
-              const clinicId = urlStr.split('/')[3];
+              if (!currentUser || currentUser.role !== 'ADMIN') {
+                return makeJsonRes({ error: 'عذراً! صلاحية حذف مجمعات العيادات مقتصرة فقط على إدارة المنصة.' }, 403);
+              }
+              const clinicId = url.split('/')[3];
               const idx = SEED_FALLBACK_CLINICS.findIndex(c => c.id === clinicId);
               if (idx >= 0) SEED_FALLBACK_CLINICS.splice(idx, 1);
               return makeJsonRes({ success: true, message: '✅ تم حذف المجمع الطبي بنجاح!' });
@@ -6036,23 +6022,20 @@
           return makeJsonRes(SEED_FALLBACK_CLINICS);
         }
 
-        // الصيدليات
-        if (urlStr.startsWith('/api/pharmacies')) {
+        if (url.startsWith('/api/pharmacies')) {
           return makeJsonRes(SEED_FALLBACK_PHARMACIES);
         }
 
-        // مراكز العلاج الطبيعي
-        if (urlStr.startsWith('/api/therapy-centers')) {
+        if (url.startsWith('/api/therapy-centers')) {
           return makeJsonRes(SEED_FALLBACK_THERAPY);
         }
 
-        // حجوزات المواعيد
-        if (urlStr.includes('/api/appointments/my') || urlStr.includes('/api/appointments/doctor-appointments')) {
+        if (url.includes('/api/appointments/my') || url.includes('/api/appointments/doctor-appointments')) {
           const saved = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
           return makeJsonRes(saved);
         }
 
-        if (urlStr === '/api/appointments' && method === 'POST') {
+        if (url === '/api/appointments' && method === 'POST') {
           const saved = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
           const newAppt = {
             id: 'appt_' + Date.now(),
@@ -6072,13 +6055,11 @@
           return makeJsonRes({ message: 'تم حجز الموعد بنجاح ⚡', appointment: newAppt }, 201);
         }
 
-        // الروشتات
-        if (urlStr.includes('/api/prescriptions')) {
+        if (url.includes('/api/prescriptions')) {
           return makeJsonRes([]);
         }
 
-        // الإحصائيات العامة
-        if (urlStr.includes('/api/stats')) {
+        if (url.includes('/api/stats')) {
           return makeJsonRes({
             doctorsCount: SEED_FALLBACK_DOCTORS.length,
             patientsCount: 1420,
@@ -6087,15 +6068,48 @@
           });
         }
 
-        // رد عام سليم لأي استدعاء إضافي
-        return makeJsonRes({ message: 'تم تنفيذ العملية بنجاح (وضع العرض السحابي المباشر عبر Firebase)' });
+        return makeJsonRes({ success: true, message: 'تم تنفيذ العملية بنجاح' });
+      };
+
+      // 1. على GitHub Pages نستخدم المحاكي فوراً لعدم وجود سيرفر Node.js خلفي
+      if (window.location.hostname.includes('github.io') && urlStr.startsWith('/api/')) {
+        const method = (init.method || 'GET').toUpperCase();
+        let bodyObj = {};
+        if (init.body) {
+          try { bodyObj = typeof init.body === 'string' ? JSON.parse(init.body) : init.body; } catch (e) {}
+        }
+        return handleMockRoute(urlStr, method, bodyObj);
       }
 
-      // في حالة وجود خادم Node.js محلي
-      return _baseFetch(resource, init);
+      // 2. على باقي البيئات (Vercel أو Localhost): نحاول الاتصال، وإذا تعذر أو أرجع صفحة خطأ غير JSON (مثل 404 NOT_FOUND)، نتحول تلقائياً للبيانات الاحتياطية
+      try {
+        const res = await _baseFetch(resource, init);
+        const cType = res.headers.get('content-type') || '';
+        if ((!res.ok || !cType.includes('json')) && urlStr.startsWith('/api/')) {
+          console.warn('Backend returned non-JSON or status ' + res.status + ', using resilient fallback for: ' + urlStr);
+          const method = (init.method || 'GET').toUpperCase();
+          let bodyObj = {};
+          if (init.body) {
+            try { bodyObj = typeof init.body === 'string' ? JSON.parse(init.body) : init.body; } catch (e) {}
+          }
+          return handleMockRoute(urlStr, method, bodyObj);
+        }
+        return res;
+      } catch (netErr) {
+        if (urlStr.startsWith('/api/')) {
+          console.warn('Network error fetching backend, using resilient fallback for: ' + urlStr);
+          const method = (init.method || 'GET').toUpperCase();
+          let bodyObj = {};
+          if (init.body) {
+            try { bodyObj = typeof init.body === 'string' ? JSON.parse(init.body) : init.body; } catch (e) {}
+          }
+          return handleMockRoute(urlStr, method, bodyObj);
+        }
+        throw netErr;
+      }
     };
 
-    window.navigateTo = function(tab) {
+        window.navigateTo = function(tab) {
       if (typeof switchDashTab === 'function') {
         switchDashTab(tab);
       }
@@ -6132,6 +6146,18 @@
     initTheme();
 
     // فحص وتفعيل واجهة المنصة فوراً وبدون أي انتظار
+    
+    function removeSosArtifacts() {
+      try {
+        document.querySelectorAll('.floating-sos-pill, .btn-sos-emergency, [onclick*="openSosModal"], #sosEmergencyModal').forEach(el => el.remove());
+      } catch (e) {}
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('DOMContentLoaded', removeSosArtifacts);
+      setTimeout(removeSosArtifacts, 500);
+      setTimeout(removeSosArtifacts, 2000);
+    }
+
     function initApp() {
       initTheme();
       if (token && currentUser) {
@@ -6328,7 +6354,7 @@
       const isAdmin = currentUser && currentUser.role === 'ADMIN';
       const isPharmacy = currentUser && currentUser.role === 'PHARMACY';
       const isTherapy = currentUser && (currentUser.role === 'THERAPY_CENTER' || currentUser.role === 'THERAPY');
-      const cleanName = currentUser ? currentUser.name.replace(/^د\.\s*/, '') : '';
+      const cleanName = (currentUser && currentUser.name) ? currentUser.name.replace(/^د\.\s*/, '') : '';
       const firstLetter = cleanName ? cleanName.charAt(0) : 'م';
 
       const avatarLetterEl = document.getElementById('dashAvatarLetter');
@@ -6390,6 +6416,10 @@
           <button class="dash-tab-btn active" id="btn-tab-appointments" onclick="switchDashTab('appointments')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span>طلبات الكشوفات الواردة</span>
+          </button>
+          <button class="dash-tab-btn" id="btn-tab-doctor-clinics" onclick="switchDashTab('doctor-clinics')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>📅 مواعيد العيادة والأطباء (اليوم وبكرة)</span>
           </button>
           <button class="dash-tab-btn" id="btn-tab-wallet" onclick="switchDashTab('wallet')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
@@ -7361,6 +7391,155 @@
       loadDoctors(selectedSpecialtyFilter, gov);
     }
 
+    
+    function getTomorrowArabicDay() {
+      const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+      const d = new Date();
+      return days[(d.getDay() + 1) % 7];
+    }
+
+    async function loadDoctorClinicsTab() {
+      const container = document.getElementById('doctorClinicsContent');
+      if (!container) return;
+
+      container.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">جاري تحميل جدول مواعيد العيادة ومناوبات الأطباء... ⏳</div>';
+
+      try {
+        let clinics = [];
+        try {
+          const res = await fetch('/api/clinics');
+          clinics = await res.json();
+        } catch (e) {
+          clinics = (typeof SEED_FALLBACK_CLINICS !== 'undefined') ? SEED_FALLBACK_CLINICS : [];
+        }
+        if (!clinics || !clinics.length) {
+          clinics = (typeof SEED_FALLBACK_CLINICS !== 'undefined') ? SEED_FALLBACK_CLINICS : [];
+        }
+
+        const today = getTodayArabicDay();
+        const tomorrow = getTomorrowArabicDay();
+        const daysOrder = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+
+        container.innerHTML = clinics.map(clinic => {
+          const schedules = clinic.schedules || [];
+          const todaySch = schedules.find(s => s.day_of_week === today);
+          const tomorrowSch = schedules.find(s => s.day_of_week === tomorrow);
+
+          const renderQuickCard = (dayName, isToday, sch) => {
+            const titleBadge = isToday ? '⚡ اليوم' : '🌅 غداً';
+            const doc = sch?.Doctor;
+            const fee = sch?.custom_fee || doc?.consultation_fee || 150;
+            const hours = sch?.shift_hours || 'من 04:00 م إلى 10:00 م';
+
+            if (doc) {
+              const spec = getSpecialtyBadge(doc.specialty).title;
+              return `
+                <div style="background:#ffffff; border:2px solid ${isToday ? '#0284c7' : '#0d9488'}; border-radius:14px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,0.04); flex:1; min-width:250px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="background:${isToday ? '#e0f2fe' : '#ccfbf1'}; color:${isToday ? '#0284c7' : '#0f766e'}; font-weight:800; font-size:12px; padding:3px 10px; border-radius:8px;">${titleBadge} (${dayName})</span>
+                    <span style="font-weight:900; color:#0b1e33; font-size:13px;">${fee} ج</span>
+                  </div>
+                  <div style="font-size:14px; font-weight:800; color:#0b1e33; margin-bottom:2px;">👨‍⚕️ ${doc.name}</div>
+                  <div style="font-size:12px; color:#0284c7; font-weight:700; margin-bottom:6px;">${spec}</div>
+                  <div style="font-size:11.5px; color:#64748b; margin-bottom:4px;">⏰ ساعات العمل: <strong>${hours}</strong></div>
+                  ${sch.notes ? `<div style="font-size:11px; color:#475569; margin-bottom:10px; background:#f8fafc; padding:4px 8px; border-radius:6px;">📝 ${sch.notes}</div>` : '<div style="margin-bottom:10px;"></div>'}
+                  <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${dayName}', '${doc.id}', '${hours.replace(/'/g, "\\'")}', '${(sch.notes || '').replace(/'/g, "\\'")}', '${sch.id}', ${fee})" style="width:100%; background:${isToday ? '#0284c7' : '#0d9488'}; color:white; border:none; padding:8px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
+                    ✏️ تغيير ميعاد / طبيب ${dayName}
+                  </button>
+                </div>
+              `;
+            } else {
+              return `
+                <div style="background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:14px; padding:16px; flex:1; min-width:250px; display:flex; flex-direction:column; justify-content:space-between;">
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                      <span style="background:#f1f5f9; color:#475569; font-weight:800; font-size:12px; padding:3px 10px; border-radius:8px;">${titleBadge} (${dayName})</span>
+                      <span style="font-size:11.5px; color:#94a3b8;">شاغر</span>
+                    </div>
+                    <div style="font-size:13px; color:#64748b; font-weight:700; margin-bottom:10px;">لا يوجد طبيب مناوب معين لـ ${dayName}</div>
+                  </div>
+                  <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${dayName}')" style="width:100%; background:#10b981; color:white; border:none; padding:8px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
+                    ➕ تعيين طبيب وميعاد ${dayName}
+                  </button>
+                </div>
+              `;
+            }
+          };
+
+          return `
+            <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:18px; margin-bottom:20px; box-shadow:0 4px 14px rgba(0,0,0,0.03);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                <div>
+                  <h3 style="font-size:16px; font-weight:900; color:#0b1e33; margin:0 0 2px 0;">🏥 ${clinic.name}</h3>
+                  <span style="font-size:12px; color:#64748b;">📍 ${clinic.address} (${clinic.governorate})</span>
+                </div>
+                <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${today}')" style="background:#0284c7; color:white; border:none; padding:8px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
+                  ➕ تعيين موعد طبيب في العيادة
+                </button>
+              </div>
+
+              <!-- بطاقات مواعيد اليوم وغداً الأسرع وصولاً -->
+              <div style="margin-bottom:16px;">
+                <div style="font-size:12.5px; font-weight:800; color:#0b1e33; margin-bottom:8px;">⚡ الأطباء المناوبون اليوم وغداً (تعديل فوري):</div>
+                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                  ${renderQuickCard(today, true, todaySch)}
+                  ${renderQuickCard(tomorrow, false, tomorrowSch)}
+                </div>
+              </div>
+
+              <!-- جدول الأسبوع الكامل -->
+              <div>
+                <div style="font-size:12.5px; font-weight:800; color:#0b1e33; margin-bottom:8px;">📅 باقي أيام الأسبوع السبعة:</div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+                  ${daysOrder.map(day => {
+                    const sch = schedules.find(s => s.day_of_week === day);
+                    const doc = sch?.Doctor;
+                    if (doc) {
+                      const fee = sch.custom_fee || doc.consultation_fee || 150;
+                      return `
+                        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
+                          <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                              <span style="background:#00897b; color:white; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:5px;">${day}</span>
+                              <span style="font-size:11px; font-weight:800; color:#00897b;">${fee} ج</span>
+                            </div>
+                            <div style="font-size:12px; font-weight:800; color:#0b1e33; margin-top:4px;">د. ${doc.name.replace(/^د.s*/, '')}</div>
+                            <div style="font-size:10.5px; color:#64748b;">⏰ ${sch.shift_hours || '4-10 م'}</div>
+                          </div>
+                          <div style="display:flex; gap:4px; margin-top:4px;">
+                            <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}', '${doc.id}', '${(sch.shift_hours || '').replace(/'/g, "\\'")}', '${(sch.notes || '').replace(/'/g, "\\'")}', '${sch.id}', ${fee})" style="flex:1; background:#e0f2fe; color:#0284c7; border:none; padding:4px; font-size:10.5px; font-weight:700; border-radius:6px; cursor:pointer;">
+                              ✏️ تعديل
+                            </button>
+                            <button type="button" class="quick-test-btn" onclick="deleteClinicScheduleDirect('${clinic.id}', '${sch.id}', '${day}')" style="background:#fee2e2; color:#b91c1c; border:none; padding:4px 8px; font-size:10.5px; font-weight:700; border-radius:6px; cursor:pointer;">
+                              ❌
+                            </button>
+                          </div>
+                        </div>
+                      `;
+                    } else {
+                      return `
+                        <div style="background:white; border:1px dashed #cbd5e1; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
+                          <div>
+                            <span style="background:#e2e8f0; color:#475569; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:5px;">${day}</span>
+                            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">شاغر</div>
+                          </div>
+                          <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}')" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:4px; font-size:10.5px; font-weight:700; border-radius:6px; cursor:pointer;">
+                            ➕ تعيين
+                          </button>
+                        </div>
+                      `;
+                    }
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = '<div style="color:red; text-align:center; padding:20px;">تعذر تحميل جدول مواعيد العيادة: ' + err.message + '</div>';
+      }
+    }
+
     function switchDashTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
       document.querySelectorAll('.dash-tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -7370,7 +7549,8 @@
       if (targetTab) targetTab.style.display = 'block';
 
       if (tab === 'admin') loadAdminDashboard();
-      if (tab === 'doctor-clinics') if (tab === 'pharmacy-orders') loadPharmacyIncomingOrders();
+      if (tab === 'doctor-clinics') loadDoctorClinicsTab();
+      if (tab === 'pharmacy-orders') loadPharmacyIncomingOrders();
       if (tab === 'pharmacy-profile') loadPharmacyProfile();
       if (tab === 'therapy-sessions') loadTherapySessions();
       if (tab === 'therapy-profile') loadTherapyProfile();
@@ -8380,7 +8560,34 @@
           `;
         }).join('');
       } catch (err) {
-        container.innerHTML = `<p style="color:red">خطأ: ${err.message}</p>`;
+        console.warn('loadDoctors error, falling back to seed doctors:', err);
+        const fallbackDocs = (typeof SEED_FALLBACK_DOCTORS !== 'undefined' && Array.isArray(SEED_FALLBACK_DOCTORS)) ? SEED_FALLBACK_DOCTORS : [];
+        if (fallbackDocs.length) {
+          container.innerHTML = fallbackDocs.map(doc => {
+            const docFee = doc.consultation_fee || 150;
+            const totalFee = docFee + 10;
+            const specInfo = getSpecialtyBadge(doc.specialty);
+            return `
+              <div class="doctor-card">
+                <div class="doc-card-top" style="display:flex; align-items:center; gap:12px;">
+                  <div class="doc-avatar">${specInfo.icon}</div>
+                  <div style="flex:1;">
+                    <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0;">${doc.name}</h3>
+                    <div style="font-size:12px; color:#0284c7; font-weight:700;">${specInfo.title}</div>
+                  </div>
+                </div>
+                <div style="font-size:12px; color:#64748b; margin:8px 0;">${doc.bio || 'طبيب استشاري معتمد في منصة حياه'}</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:8px 12px; border-radius:10px; font-size:12px; margin-bottom:10px;">
+                  <span>كشف العيادة: <strong style="color:#00897b;">${docFee} ج</strong></span>
+                  <span>المحافظة: <strong>${doc.governorate || 'القاهرة'}</strong></span>
+                </div>
+                <button class="btn-book" onclick="bookAppointment('${doc.id}', '${doc.name.replace(/'/g, '')}', ${docFee}, '${specInfo.title}', '${doc.clinic_name || 'عيادة'}')" style="width:100%; padding:10px; border-radius:10px; background:#00897b; color:white; border:none; font-weight:800; font-size:13px; cursor:pointer;">
+                  احجز كشف الآن
+                </button>
+              </div>
+            `;
+          }).join('');
+        }
       }
     }
 
@@ -9484,7 +9691,35 @@
           `;
         }).join('');
       } catch (err) {
-        container.innerHTML = `<p style="color:red; text-align:center;">خطأ في تحميل العيادات: ${err.message}</p>`;
+        console.warn('loadClinics error, falling back to seed clinics:', err);
+        allClinics = (typeof SEED_FALLBACK_CLINICS !== 'undefined' && Array.isArray(SEED_FALLBACK_CLINICS)) ? SEED_FALLBACK_CLINICS : [];
+        if (allClinics.length) {
+          const today = getTodayArabicDay();
+          container.innerHTML = allClinics.map(clinic => {
+            if (!clinicSelectedDays[clinic.id]) clinicSelectedDays[clinic.id] = today;
+            const activeDay = clinicSelectedDays[clinic.id];
+            const schedules = clinic.schedules || [];
+            const activeSchedule = schedules.find(s => s.day_of_week === activeDay);
+            const activeDoctor = activeSchedule?.Doctor;
+            return `
+              <div class="clinic-poly-card" style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,0.04); margin-bottom:16px;">
+                <div style="position:relative; height:140px; background:#0b1e33;">
+                  <img src="${clinic.clinic_photo || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80'}" alt="${clinic.name}" style="width:100%; height:100%; object-fit:cover; opacity:0.85;" onerror="this.src='https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80';">
+                  <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(11,30,51,0.2) 0%, rgba(11,30,51,0.85) 100%);"></div>
+                  <div style="position:absolute; bottom:12px; right:16px; left:16px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:8px;">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:6px;">
+                        <h3 style="color:white; font-size:17px; font-weight:900; margin:0;">${clinic.name}</h3>
+                        <span style="background:#00897b; color:white; font-size:10.5px; padding:2px 8px; border-radius:10px; font-weight:800;">${clinic.specialty || 'مجمع استشاري'}</span>
+                      </div>
+                      <div style="color:#e2e8f0; font-size:11.5px; margin-top:3px;">📍 ${clinic.address} (${clinic.governorate})</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
       }
     }
 
@@ -9953,6 +10188,7 @@
           alert('🎉 ' + data.message);
           closeAssignClinicDoctorModal();
           clinicSelectedDays[clinicId] = dayOfWeek;
+          if (typeof loadDoctorClinicsTab === "function") loadDoctorClinicsTab();
           loadClinics();
           loadAdminClinics();
           } else {

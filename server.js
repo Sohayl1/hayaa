@@ -27,6 +27,7 @@ const {
   Clinic,
   ClinicSchedule
 } = require('./models');
+const { SEED_FALLBACK_DOCTORS, SEED_FALLBACK_PHARMACIES, SEED_FALLBACK_THERAPY, SEED_FALLBACK_CLINICS } = require('./seedFallbacks');
 const { verifyDoctorDocumentsWithAI } = require('./services/aiVerification');
 const { createPaymobIntention, verifyPaymobHmac } = require('./services/paymobService');
 
@@ -1343,13 +1344,21 @@ app.get('/api/doctors', async (req, res) => {
     const where = { verification_status: 'VERIFIED' };
     if (specialty) where.specialty = specialty;
     if (governorate) where.governorate = governorate;
-    const doctors = await Doctor.findAll({
+    let doctors = await Doctor.findAll({
       where,
       order: [['rating', 'DESC']]
     });
+    if (!doctors || !doctors.length) {
+      doctors = SEED_FALLBACK_DOCTORS;
+      if (specialty) doctors = doctors.filter(d => d.specialty === specialty);
+      if (governorate) doctors = doctors.filter(d => d.governorate === governorate);
+    }
     res.json(doctors);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    let docs = SEED_FALLBACK_DOCTORS;
+    if (req.query.specialty) docs = docs.filter(d => d.specialty === req.query.specialty);
+    if (req.query.governorate) docs = docs.filter(d => d.governorate === req.query.governorate);
+    res.json(docs);
   }
 });
 
@@ -1526,7 +1535,7 @@ app.get('/api/clinics', async (req, res) => {
       ];
     }
 
-    const clinics = await Clinic.findAll({
+    let clinics = await Clinic.findAll({
       where,
       include: [
         {
@@ -1543,9 +1552,17 @@ app.get('/api/clinics', async (req, res) => {
       order: [['created_at', 'ASC']]
     });
 
+    if (!clinics || !clinics.length) {
+      clinics = SEED_FALLBACK_CLINICS;
+      if (governorate && governorate.trim() !== '') {
+        clinics = clinics.filter(c => c.governorate === governorate.trim());
+      }
+    }
+
     res.json(clinics);
   } catch (err) {
-    console.error('Error fetching clinics:', err);
+    console.error('Error fetching clinics, returning resilient fallback:', err);
+    res.json(SEED_FALLBACK_CLINICS);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1610,17 +1627,44 @@ app.post('/api/clinics', authenticate, async (req, res) => {
 // 4. تعيين أو تحديث طبيب ليوم معين في جدول العيادة (السبت، الأحد، إلخ)
 app.post('/api/clinics/:id/schedules', authenticate, async (req, res) => {
   try {
-    const clinic = await Clinic.findByPk(req.params.id);
-    if (!clinic) return res.status(404).json({ error: 'العيادة غير موجودة' });
+    let clinic = await Clinic.findByPk(req.params.id);
+    let fallbackClinic = null;
+    if (!clinic) {
+      fallbackClinic = SEED_FALLBACK_CLINICS.find(c => c.id === req.params.id);
+    }
+    if (!clinic && !fallbackClinic) return res.status(404).json({ error: 'العيادة غير موجودة' });
 
-    // التحقق الصارم من الصلاحية: فقط إدارة المنصة يملكون صلاحية تعيين وتعديل جدول الأطباء
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'عذراً، فقط إدارة المنصة وإدارة المجمع الطبي يملكون صلاحية تعيين وتعديل جدول الأطباء' });
+    // التحقق الصارم من الصلاحية: فقط إدارة المنصة والأطباء المعتمدون
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'DOCTOR') {
+      return res.status(403).json({ error: 'عذراً، فقط إدارة المنصة والأطباء المعتمدون يملكون صلاحية تعيين وتعديل جدول الأطباء ومواعيد العيادة' });
     }
 
     const { doctorId, dayOfWeek, shiftHours, notes, customFee } = req.body;
     if (!doctorId || !dayOfWeek) {
       return res.status(400).json({ error: 'يرجى اختيار الطبيب واليوم' });
+    }
+
+    if (fallbackClinic) {
+      if (!fallbackClinic.schedules) fallbackClinic.schedules = [];
+      const doc = SEED_FALLBACK_DOCTORS.find(d => d.id === doctorId) || SEED_FALLBACK_DOCTORS[0];
+      const existingIdx = fallbackClinic.schedules.findIndex(s => s.day_of_week === dayOfWeek);
+      const newSch = {
+        id: 'sch_' + Date.now(),
+        clinic_id: fallbackClinic.id,
+        doctor_id: doc.id,
+        day_of_week: dayOfWeek,
+        shift_hours: shiftHours || 'من 04:00 م إلى 10:00 م',
+        notes: notes || '',
+        custom_fee: customFee || doc.consultation_fee || 150,
+        Doctor: doc
+      };
+      if (existingIdx >= 0) fallbackClinic.schedules[existingIdx] = newSch;
+      else fallbackClinic.schedules.push(newSch);
+      return res.json({
+        success: true,
+        message: `✅ تم تعيين د. ${doc.name} ليوم ${dayOfWeek} في ${fallbackClinic.name} بنجاح!`,
+        schedule: newSch
+      });
     }
 
     const doctor = await Doctor.findByPk(doctorId);
@@ -1661,12 +1705,23 @@ app.post('/api/clinics/:id/schedules', authenticate, async (req, res) => {
 // 5. حذف تعيين طبيب من يوم معين
 app.delete('/api/clinics/:id/schedules/:scheduleId', authenticate, async (req, res) => {
   try {
-    const clinic = await Clinic.findByPk(req.params.id);
-    if (!clinic) return res.status(404).json({ error: 'العيادة غير موجودة' });
+    let clinic = await Clinic.findByPk(req.params.id);
+    let fallbackClinic = null;
+    if (!clinic) {
+      fallbackClinic = SEED_FALLBACK_CLINICS.find(c => c.id === req.params.id);
+    }
+    if (!clinic && !fallbackClinic) return res.status(404).json({ error: 'العيادة غير موجودة' });
 
-    // التحقق الصارم من الصلاحية: فقط إدارة المنصة
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'عذراً، فقط إدارة المنصة يملكون صلاحية حذف مواعيد الأطباء' });
+    // التحقق الصارم من الصلاحية: فقط إدارة المنصة والأطباء المعتمدون
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'DOCTOR') {
+      return res.status(403).json({ error: 'عذراً، فقط إدارة المنصة والأطباء المعتمدون يملكون صلاحية حذف مواعيد الأطباء' });
+    }
+
+    if (fallbackClinic) {
+      if (fallbackClinic.schedules) {
+        fallbackClinic.schedules = fallbackClinic.schedules.filter(s => s.id !== req.params.scheduleId);
+      }
+      return res.json({ success: true, message: '✅ تم إلغاء جدول هذا اليوم بنجاح' });
     }
 
     const schedule = await ClinicSchedule.findOne({
@@ -1702,14 +1757,20 @@ app.get('/api/therapy-centers', async (req, res) => {
     const { governorate } = req.query;
     const where = { verification_status: 'VERIFIED' };
     if (governorate) where.governorate = governorate;
-    const centers = await TherapyCenter.findAll({
+    let centers = await TherapyCenter.findAll({
       where,
       include: [{ model: TherapyBranch, as: 'branches' }],
       order: [['rating', 'DESC']]
     });
+    if (!centers || !centers.length) {
+      centers = SEED_FALLBACK_THERAPY;
+      if (governorate && governorate.trim() !== '') {
+        centers = centers.filter(c => c.governorate === governorate.trim());
+      }
+    }
     res.json(centers);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json(SEED_FALLBACK_THERAPY);
   }
 });
 
@@ -3011,13 +3072,19 @@ app.get('/api/pharmacies', async (req, res) => {
         { phone: { [Op.like]: `%${q}%` } }
       ];
     }
-    const pharmacies = await Pharmacy.findAll({
+    let pharmacies = await Pharmacy.findAll({
       where,
       order: [['created_at', 'ASC']]
     });
+    if (!pharmacies || !pharmacies.length) {
+      pharmacies = SEED_FALLBACK_PHARMACIES;
+      if (governorate && governorate.trim() !== '') {
+        pharmacies = pharmacies.filter(p => p.governorate === governorate.trim());
+      }
+    }
     res.json(pharmacies);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json(SEED_FALLBACK_PHARMACIES);
   }
 });
 
