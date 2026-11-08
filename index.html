@@ -2842,7 +2842,7 @@
   <!-- ==================================================== -->
   <!-- لوحة التحكم الكاملة عند تسجيل الدخول (Dashboard View) -->
   <!-- ==================================================== -->
-  <div id="dashboardView">
+  <div id="dashboardView" style="display:none;">
     
     <!-- Header الداكن الجديد -->
     <div class="dash-topbar">
@@ -6131,15 +6131,22 @@
     // تهيئة الوضع الليلي / النهاري فوراً
     initTheme();
 
-    // فحص حالة الدخول عند بدء تحميل الصفحة
-    window.addEventListener('DOMContentLoaded', () => {
+    // فحص وتفعيل واجهة المنصة فوراً وبدون أي انتظار
+    function initApp() {
       initTheme();
       if (token && currentUser) {
         showDashboard();
       } else {
         showLanding();
       }
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
+    window.addEventListener('load', initApp);
 
     function initTheme() {
       const savedTheme = localStorage.getItem('hayat_theme') || 'light';
