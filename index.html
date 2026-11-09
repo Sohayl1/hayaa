@@ -7143,6 +7143,11 @@
         };
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(currentUser));
+        try {
+          const localUsers = JSON.parse(localStorage.getItem('haya_local_users') || '[]');
+          localUsers.unshift(currentUser);
+          localStorage.setItem('haya_local_users', JSON.stringify(localUsers));
+        } catch(e){}
         closeRegisterModal();
         alert('🎉 تم إنشاء حسابك بنجاح! مرحباً بك في منصة حياه.');
         showDashboard();
@@ -7499,10 +7504,35 @@
         formData.append('graduationCert', graduationCertFile);
         formData.append('facePhoto', facePhotoFile);
 
-        const clinicPhotoFile = document.getElementById('docClinicPhotoFile')?.files[0];
         if (clinicPhotoFile) {
           formData.append('clinicPhoto', clinicPhotoFile);
         }
+
+        // حفظ محلي احتياطي للطلبات المعلقة
+        try {
+          const localPending = JSON.parse(localStorage.getItem('haya_local_pending_verifications') || '[]');
+          localPending.unshift({
+            id: 'lp_doc_' + Date.now(),
+            type: 'DOCTOR',
+            name: document.getElementById('docName').value.trim(),
+            email: document.getElementById('docEmail').value.trim(),
+            phone: document.getElementById('docPhone').value.trim(),
+            specialty: document.getElementById('docSpecialty').value,
+            clinic_name: document.getElementById('docClinicName')?.value?.trim() || 'عيادة خاصة',
+            clinic_type: document.getElementById('docClinicType')?.value || 'PRIVATE',
+            consultation_fee: document.getElementById('docConsultationFee').value || '150',
+            governorate: document.getElementById('docGovernorate')?.value || 'القاهرة',
+            syndicate_card_front: frontUrl || '',
+            syndicate_card_back: backUrl || '',
+            graduation_cert: gradUrl || '',
+            profile_photo: faceUrl || '',
+            clinic_photo: clinicUrl || '',
+            promo_code: docPromoVal || null,
+            verification_status: 'PENDING',
+            created_at: new Date().toISOString()
+          });
+          localStorage.setItem('haya_local_pending_verifications', JSON.stringify(localPending));
+        } catch(e){}
 
         // مزامنة فورية في Firebase Firestore كطلب معلق للإدارة
         if (typeof window.syncToFirestore === 'function') {
@@ -8388,7 +8418,7 @@
         let count = 0;
         try {
           const res = await fetch('/api/admin/complaints/count', {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
           });
           if (res.ok) {
             const data = await res.json();
@@ -8400,11 +8430,19 @@
           try {
             const fsComplaints = await window.getFirestoreDocs('complaints');
             if (Array.isArray(fsComplaints)) {
-              const fsNew = fsComplaints.filter(c => c.status === 'NEW').length;
+              const fsNew = fsComplaints.filter(c => !c.status || c.status === 'NEW').length;
               count = Math.max(count, fsNew);
             }
           } catch(e){}
         }
+
+        try {
+          const localList = JSON.parse(localStorage.getItem('haya_local_complaints') || '[]');
+          if (Array.isArray(localList)) {
+            const localNew = localList.filter(c => !c.status || c.status === 'NEW').length;
+            count = Math.max(count, localNew);
+          }
+        } catch(e){}
 
         const badge = document.getElementById('adminComplaintsBadge');
         if (badge) badge.textContent = count;
@@ -8415,18 +8453,43 @@
 
     async function loadAdminOverview() {
       try {
-        const res = await fetch('/api/admin/overview', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const userCount = Math.max(data.usersCount || 0, adminUsersList.length || 0, 6);
-          if (document.getElementById('adminStatUsers')) document.getElementById('adminStatUsers').textContent = userCount;
-          if (document.getElementById('adminStatDoctors')) document.getElementById('adminStatDoctors').textContent = data.doctorsCount || 11;
-          if (document.getElementById('adminStatTherapy')) document.getElementById('adminStatTherapy').textContent = data.centersCount || 1;
-          if (document.getElementById('adminStatAppts')) document.getElementById('adminStatAppts').textContent = data.apptsCount || 1;
+        let data = {};
+        try {
+          const res = await fetch('/api/admin/overview', {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
+          if (res.ok) {
+            data = await res.json();
+          }
+        } catch(e){}
+
+        let usersCount = data.usersCount || (adminUsersList ? adminUsersList.length : 0);
+        if (typeof window.getFirestoreDocs === 'function') {
+          try {
+            const fsUsers = await window.getFirestoreDocs('users');
+            if (Array.isArray(fsUsers)) {
+              usersCount = Math.max(usersCount, fsUsers.length);
+            }
+          } catch(e){}
         }
-        loadAdminComplaintsCount();
+        try {
+          const localUsers = JSON.parse(localStorage.getItem('haya_local_users') || '[]');
+          if (Array.isArray(localUsers)) {
+            usersCount = Math.max(usersCount, localUsers.length);
+          }
+        } catch(e){}
+        usersCount = Math.max(usersCount, (adminUsersList && adminUsersList.length) ? adminUsersList.length : 7);
+
+        const doctorsCount = data.doctorsCount || (typeof allDoctors !== 'undefined' && allDoctors.length ? allDoctors.length : 11);
+        const centersCount = data.centersCount || 1;
+        const apptsCount = data.apptsCount || 1;
+
+        if (document.getElementById('adminStatUsers')) document.getElementById('adminStatUsers').textContent = usersCount;
+        if (document.getElementById('adminStatDoctors')) document.getElementById('adminStatDoctors').textContent = doctorsCount;
+        if (document.getElementById('adminStatTherapy')) document.getElementById('adminStatTherapy').textContent = centersCount;
+        if (document.getElementById('adminStatAppts')) document.getElementById('adminStatAppts').textContent = apptsCount;
+
+        await loadAdminComplaintsCount();
       } catch (err) {
         console.error('Error loading admin overview:', err);
       }
@@ -8509,6 +8572,25 @@
             }
           } catch(e){}
         }
+
+        // دمج الطلبات المعلقة المحفوظة محلياً احتياطياً
+        try {
+          const localPending = JSON.parse(localStorage.getItem('haya_local_pending_verifications') || '[]');
+          if (Array.isArray(localPending)) {
+            for (const lp of localPending) {
+              if (lp.type === 'DOCTOR') {
+                const exists = (data.doctors || []).some(d => (d.User?.email && lp.email && d.User.email.toLowerCase() === lp.email.toLowerCase()) || d.name === lp.name);
+                if (!exists) {
+                  if (!data.doctors) data.doctors = [];
+                  data.doctors.unshift({
+                    ...lp,
+                    User: { email: lp.email, name: lp.name, phone: lp.phone }
+                  });
+                }
+              }
+            }
+          }
+        } catch(e){}
 
         data.totalPending = (data.doctors?.length || 0) + (data.pharmacies?.length || 0) + (data.therapyCenters?.length || 0);
         const badge = document.getElementById('adminPendingBadge');

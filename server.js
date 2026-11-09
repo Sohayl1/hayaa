@@ -32,13 +32,16 @@ const { verifyDoctorDocumentsWithAI } = require('./services/aiVerification');
 const { createPaymobIntention, verifyPaymobHmac } = require('./services/paymobService');
 
 // إعداد خدمة إرسال البريد الإلكتروني (Gmail & SMTP)
+const smtpDefaultUser = process.env.SMTP_USER || 'hayathealthcare3@gmail.com';
+const smtpDefaultPass = (process.env.SMTP_PASS || 'mijdqmkacauvjmtu').replace(/\s+/g, '');
+
 const transporter = nodemailer.createTransport(
   (process.env.SMTP_HOST === 'smtp.gmail.com' || !process.env.SMTP_HOST)
     ? {
         service: 'gmail',
         auth: {
-          user: process.env.SMTP_USER || '',
-          pass: (process.env.SMTP_PASS || '').replace(/\s+/g, ''),
+          user: smtpDefaultUser,
+          pass: smtpDefaultPass,
         }
       }
     : {
@@ -46,8 +49,8 @@ const transporter = nodemailer.createTransport(
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_SECURE === 'true',
         auth: {
-          user: process.env.SMTP_USER || '',
-          pass: (process.env.SMTP_PASS || '').replace(/\s+/g, ''),
+          user: smtpDefaultUser,
+          pass: smtpDefaultPass,
         }
       }
 );
@@ -765,7 +768,12 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
     ]);
 
     const avatarChoice = req.body.avatarUrl || '';
-    if (!syndicateFrontFile || !syndicateBackFile || !graduationCertFile || (!facePhotoFile && !avatarChoice)) {
+    const hasFront = !!syndicateFrontFile || !!syndicateFrontUrl || !!req.body.syndicateFrontUrl;
+    const hasBack = !!syndicateBackFile || !!syndicateBackUrl || !!req.body.syndicateBackUrl;
+    const hasGrad = !!graduationCertFile || !!graduationCertUrl || !!req.body.graduationCertUrl;
+    const hasFace = !!facePhotoFile || !!facePhotoUrl || !!req.body.facePhotoUrl || !!avatarChoice;
+
+    if (!hasFront || !hasBack || !hasGrad || !hasFace) {
       return res.status(400).json({
         error: 'يجب إرفاق المستندات الثلاثة (كارنيه النقابة وجه، كارنيه النقابة ظهر، شهادة التخرج) وإما رفع صورة شخصية أو اختيار أفتار طبي لإتمام التسجيل'
       });
@@ -3609,10 +3617,12 @@ app.post('/api/complaints', async (req, res) => {
     });
 
     // إرسال إشعار فوري إلى بريد إدارة المنصة إن توفرت إعدادات SMTP
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const adminSmtpUser = process.env.SMTP_USER || 'hayathealthcare3@gmail.com';
+    const adminSmtpPass = (process.env.SMTP_PASS || 'mijdqmkacauvjmtu').replace(/\s+/g, '');
+    if (adminSmtpUser && adminSmtpPass) {
       try {
         await transporter.sendMail({
-          from: `"منصة حياه للرعاية الصحية" <${process.env.SMTP_USER}>`,
+          from: `"منصة حياه للرعاية الصحية" <${adminSmtpUser}>`,
           to: process.env.ADMIN_EMAIL || 'hayathealthcare3@gmail.com',
           subject: `📢 [رسالة دعم / شكوى جديدة من ${userName}]: ${subject}`,
           html: `
