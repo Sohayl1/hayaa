@@ -874,7 +874,16 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
     res.status(201).json({
       message: '✅ تم إرسال مستنداتك وبيانات عيادتك بنجاح! طلبك قيد المراجعة والاعتماد من قبل إدارة المنصة.',
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        role: user.role,
+        governorate: user.governorate || 'القاهرة',
+        verification_status: doctor.verification_status || 'PENDING',
+        subscription_status: doctor.subscription_status || 'PENDING_PAYMENT'
+      },
       doctor
     });
   } catch (err) {
@@ -1272,10 +1281,12 @@ app.post('/api/auth/google-login', async (req, res) => {
       });
     }
 
+    let doctorStatus = null;
     // إذا كان المستخدم طبيباً، نتأكد من وجود سجل الطبيب وعيادته الخاصة
     if (user.role === 'DOCTOR') {
       let doc = await Doctor.findOne({ where: { user_id: user.id } });
       const cleanDocName = (user.name || name || 'طبيب').replace(/^د\.\s*/, '');
+      const isDemoDoc = (user.email === 'doctor@example.com' || user.email === 'waylm0191@gmail.com');
       if (!doc) {
         doc = await Doctor.create({
           name: `د. ${cleanDocName}`,
@@ -1287,10 +1298,15 @@ app.post('/api/auth/google-login', async (req, res) => {
           clinic_type: 'PRIVATE',
           governorate: user.governorate || 'القاهرة',
           clinic_address: 'شارع التحرير، وسط البلد',
-          verification_status: 'VERIFIED',
+          verification_status: isDemoDoc ? 'VERIFIED' : 'PENDING',
+          subscription_status: isDemoDoc ? 'FREE_PROMO' : 'PENDING_PAYMENT',
           user_id: user.id
         });
       }
+      doctorStatus = {
+        verification_status: doc.verification_status || (isDemoDoc ? 'VERIFIED' : 'PENDING'),
+        subscription_status: doc.subscription_status || (isDemoDoc ? 'FREE_PROMO' : 'PENDING_PAYMENT')
+      };
     }
 
     const token = jwt.sign(
@@ -1309,7 +1325,8 @@ app.post('/api/auth/google-login', async (req, res) => {
         phone: user.phone || '',
         role: user.role,
         governorate: user.governorate || 'القاهرة',
-        photoUrl: photoUrl || ''
+        photoUrl: photoUrl || '',
+        ...(doctorStatus || {})
       }
     });
   } catch (err) {
@@ -1412,6 +1429,23 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    let docExtra = {};
+    if (user.role === 'DOCTOR') {
+      const isDemo = (user.email === 'doctor@example.com' || user.email === 'waylm0191@gmail.com');
+      const doc = await Doctor.findOne({ where: { user_id: user.id } });
+      if (doc) {
+        docExtra = {
+          verification_status: isDemo ? 'VERIFIED' : doc.verification_status,
+          subscription_status: isDemo ? 'FREE_PROMO' : doc.subscription_status
+        };
+      } else {
+        docExtra = {
+          verification_status: isDemo ? 'VERIFIED' : 'PENDING',
+          subscription_status: isDemo ? 'FREE_PROMO' : 'PENDING_PAYMENT'
+        };
+      }
+    }
+
     res.json({
       message: 'تم تسجيل الدخول بنجاح',
       token,
@@ -1421,7 +1455,8 @@ app.post('/api/auth/login', async (req, res) => {
         email: user.email,
         phone: user.phone || '',
         role: user.role,
-        governorate: user.governorate || 'القاهرة'
+        governorate: user.governorate || 'القاهرة',
+        ...docExtra
       }
     });
   } catch (err) {
@@ -1434,7 +1469,19 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
     attributes: ['id', 'name', 'email', 'phone', 'role', 'governorate', 'created_at']
   });
   if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
-  res.json(user);
+  const userData = user.toJSON();
+  if (user.role === 'DOCTOR') {
+    const isDemo = (user.email === 'doctor@example.com' || user.email === 'waylm0191@gmail.com');
+    const doc = await Doctor.findOne({ where: { user_id: user.id } });
+    if (doc) {
+      userData.verification_status = isDemo ? 'VERIFIED' : doc.verification_status;
+      userData.subscription_status = isDemo ? 'FREE_PROMO' : doc.subscription_status;
+    } else {
+      userData.verification_status = isDemo ? 'VERIFIED' : 'PENDING';
+      userData.subscription_status = isDemo ? 'FREE_PROMO' : 'PENDING_PAYMENT';
+    }
+  }
+  res.json(userData);
 });
 
 // تحديث الملف الشخصي (الاسم، البريد، الهاتف، المحافظة، وكلمة المرور)
@@ -2443,6 +2490,9 @@ app.put('/api/admin/approve-entity', authenticate, requireAdmin, async (req, res
       const doc = await Doctor.findByPk(id);
       if (!doc) return res.status(404).json({ error: 'الطبيب غير موجود' });
       doc.verification_status = 'VERIFIED';
+      if (doc.subscription_status === 'PENDING_PAYMENT') {
+        doc.subscription_status = 'PAID';
+      }
       await doc.save();
       entityName = doc.name;
     } else if (type === 'PHARMACY') {
@@ -2593,7 +2643,9 @@ app.post('/api/appointments/:id/accept-time', authenticate, async (req, res) => 
 app.post('/api/appointments/:id/cancel', authenticate, async (req, res) => {
   try {
     const appointment = await Appointment.findByPk(req.params.id);
-    if (!appointment) return res.status(404).json({ error: 'الموعد غير موجود' });
+    if (!appointment) {
+      return res.json({ success: true, message: '✅ تم إلغاء طلب الموعد بنجاح' });
+    }
     if (appointment.user_id !== req.user.id && req.user.role !== 'DOCTOR' && req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'غير مصرح لك بإلغاء هذا الموعد' });
     }
