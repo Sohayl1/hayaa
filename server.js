@@ -1286,7 +1286,7 @@ app.post('/api/auth/google-login', async (req, res) => {
     if (user.role === 'DOCTOR') {
       let doc = await Doctor.findOne({ where: { user_id: user.id } });
       const cleanDocName = (user.name || name || 'طبيب').replace(/^د\.\s*/, '');
-      const isDemoDoc = (user.email === 'doctor@example.com' || user.email === 'waylm0191@gmail.com');
+      const isDemoDoc = (user.email === 'doctor@example.com');
       if (!doc) {
         doc = await Doctor.create({
           name: `د. ${cleanDocName}`,
@@ -1431,7 +1431,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     let docExtra = {};
     if (user.role === 'DOCTOR') {
-      const isDemo = (user.email === 'doctor@example.com' || user.email === 'waylm0191@gmail.com');
+      const isDemo = (user.email === 'doctor@example.com');
       const doc = await Doctor.findOne({ where: { user_id: user.id } });
       if (doc) {
         docExtra = {
@@ -1487,7 +1487,7 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
   }
   const userData = user.toJSON();
   if (user.role === 'DOCTOR') {
-    const isDemo = (user.email === 'doctor@example.com' || user.email === 'waylm0191@gmail.com');
+    const isDemo = (user.email === 'doctor@example.com');
     const doc = await Doctor.findOne({ where: { user_id: user.id } });
     if (doc) {
       userData.verification_status = isDemo ? 'VERIFIED' : doc.verification_status;
@@ -2623,6 +2623,27 @@ app.post('/api/appointments', authenticate, async (req, res) => {
   try {
     let { doctorId, preferredDay, patientNotes } = req.body;
     let doctor = doctorId ? await Doctor.findByPk(doctorId) : null;
+    if (!doctor && doctorId && Array.isArray(SEED_FALLBACK_DOCTORS)) {
+      const fallbackDoc = SEED_FALLBACK_DOCTORS.find(d => d.id === doctorId || d.name === doctorId);
+      if (fallbackDoc) {
+        try {
+          doctor = await Doctor.create({
+            id: fallbackDoc.id,
+            name: fallbackDoc.name,
+            specialty: fallbackDoc.specialty,
+            bio: fallbackDoc.bio || 'استشاري معتمد لدى منصة حياه',
+            phone: fallbackDoc.phone || '01012345678',
+            consultation_fee: fallbackDoc.consultation_fee || 150,
+            clinic_name: fallbackDoc.clinic_name || 'عيادة خاصة',
+            governorate: fallbackDoc.governorate || 'القاهرة',
+            verification_status: 'VERIFIED',
+            subscription_status: 'PAID'
+          });
+        } catch(e) {
+          doctor = await Doctor.findByPk(fallbackDoc.id);
+        }
+      }
+    }
     if (!doctor && doctorId) {
       doctor = await Doctor.findOne({ where: { user_id: doctorId } });
     }
@@ -3988,6 +4009,111 @@ sequelize.sync().then(async () => {
     await sequelize.query("UPDATE appointments SET price_cents = ROUND(price_cents / 100) WHERE price_cents > 500;");
     await sequelize.query("UPDATE appointments SET doctor_fee = ROUND(doctor_fee / 100) WHERE doctor_fee > 500;");
   } catch (e) {}
+
+  // تهيئة وتوثيق أطباء ومراكز وصيدليات وعيادات الدليل الافتراضية إذا كانت الجداول فارغة
+  try {
+    const docCount = await Doctor.count();
+    if (docCount === 0 && Array.isArray(SEED_FALLBACK_DOCTORS)) {
+      for (const d of SEED_FALLBACK_DOCTORS) {
+        try {
+          await Doctor.create({
+            id: d.id,
+            name: d.name,
+            specialty: d.specialty,
+            rating: d.rating || 0,
+            rating_count: d.rating_count || 0,
+            avatar_url: d.avatar_url || '',
+            profile_photo: d.profile_photo || '',
+            clinic_photo: d.clinic_photo || '',
+            bio: d.bio || '',
+            phone: d.phone || '01012345678',
+            consultation_fee: d.consultation_fee || 150,
+            clinic_name: d.clinic_name || 'عيادة خاصة',
+            clinic_type: d.clinic_type || 'PRIVATE',
+            governorate: d.governorate || 'القاهرة',
+            clinic_address: d.clinic_address || '',
+            latitude: d.latitude || 30.0444,
+            longitude: d.longitude || 31.2357,
+            verification_status: 'VERIFIED',
+            subscription_status: 'PAID'
+          });
+        } catch(e) {}
+      }
+    }
+
+    const phCount = await Pharmacy.count();
+    if (phCount === 0 && Array.isArray(SEED_FALLBACK_PHARMACIES)) {
+      for (const p of SEED_FALLBACK_PHARMACIES) {
+        try {
+          await Pharmacy.create({
+            id: p.id,
+            name: p.name,
+            address: p.address || '',
+            phone: p.phone || '',
+            latitude: p.latitude || 30.0444,
+            longitude: p.longitude || 31.2357,
+            governorate: p.governorate || 'القاهرة',
+            verification_status: 'VERIFIED',
+            subscription_status: 'PAID'
+          });
+        } catch(e) {}
+      }
+    }
+
+    const thCount = await TherapyCenter.count();
+    if (thCount === 0 && Array.isArray(SEED_FALLBACK_THERAPY)) {
+      for (const t of SEED_FALLBACK_THERAPY) {
+        try {
+          await TherapyCenter.create({
+            id: t.id,
+            name: t.name,
+            description: t.description || '',
+            services: t.services || '',
+            rating: t.rating || 4.9,
+            phone: t.phone || '',
+            governorate: t.governorate || 'القاهرة',
+            verification_status: 'VERIFIED',
+            subscription_status: 'PAID'
+          });
+        } catch(e) {}
+      }
+    }
+
+    const clCount = await Clinic.count();
+    if (clCount === 0 && Array.isArray(SEED_FALLBACK_CLINICS)) {
+      for (const c of SEED_FALLBACK_CLINICS) {
+        try {
+          const createdClinic = await Clinic.create({
+            id: c.id,
+            name: c.name,
+            description: c.description || '',
+            specialty: c.specialty || 'مجمع استشاري',
+            governorate: c.governorate || 'القاهرة',
+            address: c.address || '',
+            phone: c.phone || '',
+            clinic_photo: c.clinic_photo || ''
+          });
+          if (Array.isArray(c.schedules)) {
+            for (const s of c.schedules) {
+              try {
+                await ClinicSchedule.create({
+                  id: s.id,
+                  clinic_id: createdClinic.id,
+                  day_of_week: s.day_of_week,
+                  shift_hours: s.shift_hours || 'من 04:00 م إلى 10:00 م',
+                  doctor_id: s.doctor_id,
+                  custom_fee: s.custom_fee || 150,
+                  notes: s.notes || ''
+                });
+              } catch(e) {}
+            }
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(seedErr) {
+    console.warn('Seed initialization note:', seedErr.message);
+  }
 
   console.log('✅ تم الاتصال ومزامنة جداول قاعدة البيانات بنجاح.');
   if (!process.env.VERCEL && require.main === module) {

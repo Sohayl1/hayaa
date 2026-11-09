@@ -133,7 +133,7 @@
           } catch(e) {}
 
           // طبيب جديد: لا يتخطى الإجراءات نهائياً!
-          const loginModalEl = document.getElementById('loginModal');
+          const loginModalEl = document.getElementById('loginModal') || document.getElementById('registerModal');
           if (loginModalEl) loginModalEl.style.display = 'none';
           if (typeof openDoctorRegisterModal === 'function') openDoctorRegisterModal();
           
@@ -239,7 +239,7 @@
         if (document.getElementById('registerModal')) {
           document.getElementById('registerModal').style.display = 'none';
         }
-        const loginModal = document.getElementById('loginModal');
+        const loginModal = document.getElementById('loginModal') || document.getElementById('registerModal');
         if (loginModal) loginModal.style.display = 'none';
 
         showDashboard();
@@ -3295,6 +3295,10 @@
             <div id="adminStatComplaints" style="font-size:24px; font-weight:900; color:#d97706; margin-top:4px;">0</div>
             <div style="font-size:10px; color:#b45309; margin-top:2px;">اضغط للعرض</div>
           </div>
+          <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:11.5px; color:#0369a1; font-weight:700;">🏥 مجمعات العيادات</div>
+            <div id="adminStatClinics" style="font-size:24px; font-weight:900; color:#0284c7; margin-top:4px;">0</div>
+          </div>
         </div>
 
         <!-- أزرار التبديل بين أقسام الإدارة -->
@@ -3886,7 +3890,7 @@
     <!-- محتوى المواعيد والدفع -->
     
     <!-- محتوى تبويب إدارة عيادة الطبيب ومواعيد وساعات كشفه الخاصة -->
-    <div id="tab-doctor-clinics" class="dash-card tab-content" style="display:none;">
+    <div id="tab-doctor-clinics" class="dash-card tab-content" style="display:none;"><div id="doctorClinicsList" style="display:none;"></div>
       <div class="section-header" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:18px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
           <div class="section-title" style="margin:0;">
@@ -4115,6 +4119,7 @@
   </div>
 
   <!-- نافذة إنشاء حساب جديد والتحقق عبر OTP (Modal) -->
+  <div id="loginModal" style="display:none;"></div>
   <div class="modal-overlay" id="registerModal">
     <div class="modal-dialog">
       <button class="modal-close" onclick="closeRegisterModal()">✕</button>
@@ -4228,6 +4233,7 @@
           <div class="form-group">
             <label class="field-label" style="text-align:center;">أدخل الرمز المكون من 6 أرقام</label>
             <div class="input-wrapper">
+              <span id="devCodeDisplay" style="display:none;"></span>
               <input type="text" id="otpCodeInput" maxlength="6" placeholder="------" style="text-align:center; font-size:26px; font-weight:900; letter-spacing:8px; padding:12px;" required>
             </div>
           </div>
@@ -4486,6 +4492,7 @@
               </div>
               <div id="statusFacePhoto" style="font-size: 11.5px; color: #16a34a; font-weight: 600; margin-top: 6px; display: none;">✅ تم اختيار الصورة</div>
               <img id="previewFacePhoto" style="max-height: 80px; border-radius: 8px; margin-top: 8px; display: none;" />
+              <div id="regAvatarPreview" style="display:none; font-size:40px; margin-top:8px; align-items:center; justify-content:center; width:64px; height:64px; border-radius:50%; background:#e0f2fe; border:2px solid #0284c7;"></div>
 
               <!-- اختيار سريع للأفتار الطبي -->
               <div style="margin-top:10px; border-top:1px solid #f1f5f9; padding-top:8px;">
@@ -4600,6 +4607,13 @@
           <label class="field-label">البريد الإلكتروني للصيدلية</label>
           <div class="input-wrapper">
             <input type="email" id="phEmail" placeholder="pharmacy@example.com" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="field-label">رقم الهاتف / الواتساب للتواصل والطلبات *</label>
+          <div class="input-wrapper">
+            <input type="tel" id="phPhone" placeholder="01xxxxxxxxx" required>
           </div>
         </div>
 
@@ -5628,6 +5642,8 @@
 
       <form id="assignClinicDoctorForm" onsubmit="submitAssignClinicDoctor(event)">
         <input type="hidden" id="assignClinicId">
+        <input type="hidden" id="assignScheduleId">
+        <input type="number" id="assignCustomFee" style="display:none;" value="150">
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
           <div class="form-group">
@@ -5662,12 +5678,20 @@
           <input type="text" id="assignNotes" placeholder="مثال: كشف استشاري مخ وأعصاب وحالات الصداع والعمود الفقري" style="width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1.5px solid #cbd5e1; font-family:inherit; font-size:13px;">
         </div>
 
-        <div style="display:flex; justify-content:flex-end; gap:10px;">
-          <button type="button" class="quick-test-btn" onclick="closeAssignClinicDoctorModal()" style="padding:10px 18px;">إلغاء</button>
-          <button type="submit" id="btnSubmitAssignDoctor" style="padding:10px 24px; border:none; background:#0284c7; color:white; border-radius:10px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            <span>تثبيت الطبيب لهذا اليوم</span>
-          </button>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <div>
+            <button type="button" id="btnDeleteSchedule" style="display:none; padding:10px 14px; border:none; background:#fee2e2; color:#ef4444; border-radius:10px; font-weight:700; cursor:pointer;" onclick="deleteClinicScheduleFromModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle; margin-left:4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>إلغاء الموعد</span>
+            </button>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="quick-test-btn" onclick="closeAssignClinicDoctorModal()" style="padding:10px 18px;">إلغاء</button>
+            <button type="submit" id="btnSubmitAssignDoctor" style="padding:10px 24px; border:none; background:#0284c7; color:white; border-radius:10px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>تثبيت الطبيب لهذا اليوم</span>
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -6623,9 +6647,9 @@
         loadAdminDashboard();
       } else if (isDoctor) {
         const isDoctorVerified = (
-          currentUser.verification_status === 'VERIFIED' || 
-          currentUser.email === 'doctor@example.com' || 
-          currentUser.email === 'waylm0191@gmail.com'
+          (currentUser.verification_status === 'VERIFIED' && 
+           (currentUser.subscription_status === 'PAID' || currentUser.subscription_status === 'FREE_PROMO' || currentUser.promo_code === 'HAYAAFREE')) || 
+          currentUser.email === 'doctor@example.com'
         );
 
         if (!isDoctorVerified) {
@@ -6821,7 +6845,7 @@
         if (typeof closeDoctorRegisterModal === 'function') closeDoctorRegisterModal();
         if (typeof closePharmacyRegisterModal === 'function') closePharmacyRegisterModal();
         if (typeof closeTherapyRegisterModal === 'function') closeTherapyRegisterModal();
-        const loginOverlay = document.getElementById('loginModal');
+        const loginOverlay = document.getElementById('loginModal') || document.getElementById('registerModal');
         if (loginOverlay) loginOverlay.style.display = 'none';
         goToAuthStep(1);
         if (typeof closeDoctorRegisterModal === 'function') closeDoctorRegisterModal();
@@ -8494,54 +8518,27 @@
     }
 
     function openAddDoctorClinicModal() {
-      const modal = document.getElementById('addDoctorClinicModal');
-      if (modal) modal.style.display = 'flex';
+      if (typeof openEditDoctorClinicDetailsModal === 'function') {
+        openEditDoctorClinicDetailsModal(
+          currentUser?.clinic_name || '',
+          currentUser?.specialty || 'general',
+          currentUser?.governorate || 'القاهرة',
+          currentUser?.clinic_address || '',
+          currentUser?.phone || '',
+          currentUser?.consultation_fee || 150
+        );
+      }
     }
 
     function closeAddDoctorClinicModal() {
-      const modal = document.getElementById('addDoctorClinicModal');
-      if (modal) modal.style.display = 'none';
+      if (typeof closeEditDoctorClinicDetailsModal === 'function') {
+        closeEditDoctorClinicDetailsModal();
+      }
     }
 
     async function handleSubmitAddDoctorClinic(e) {
-      e.preventDefault();
-      const name = document.getElementById('docClinicNameInput').value.trim();
-      const governorate = document.getElementById('docClinicGovInput').value;
-      const address = document.getElementById('docClinicAddressInput').value.trim();
-      const fee = parseInt(document.getElementById('docClinicFeeInput').value) || 150;
-      const btn = document.getElementById('btnSubmitAddClinic');
-
-      btn.disabled = true;
-      btn.innerHTML = 'جاري الحفظ... ⏳';
-
-      try {
-        const res = await fetch('/api/clinics', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({
-            name,
-            governorate,
-            address,
-            specialty: (currentUser && currentUser.specialty) ? getSpecialtyBadge(currentUser.specialty).title : 'عيادة تخصصية',
-            custom_fee: fee
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          alert('🎉 تم إنشاء وتفعيل عيادتك بنجاح! يمكنك الآن تحديد ومراجعة مواعيد الكشوفات.');
-          closeAddDoctorClinicModal();
-          loadDoctorClinicsTab();
-        } else {
-          alert('❌ ' + (data.error || 'تعذر إنشاء العيادة'));
-        }
-      } catch (err) {
-        alert('خطأ: ' + err.message);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '💾 حفظ وتفعيل العيادة';
+      if (typeof handleEditDoctorClinicDetailsSubmit === 'function') {
+        return handleEditDoctorClinicDetailsSubmit(e);
       }
     }
 
@@ -11661,7 +11658,7 @@
       const apptId = document.getElementById('setTimeApptId').value;
       const scheduledTime = document.getElementById('setTimeInput').value.trim();
       const notes = document.getElementById('setTimeNotesInput').value.trim();
-      const btn = document.getElementById('btnSubmitSetTime') || document.getElementById('btnSaveTime');
+      const btn = document.getElementById('btnSubmitSetTime');
 
       if (!scheduledTime) {
         alert('يرجى تحديد أو كتابة الموعد بالساعة');
