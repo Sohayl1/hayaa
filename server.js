@@ -2632,8 +2632,13 @@ app.post('/api/appointments', authenticate, async (req, res) => {
       });
     }
     if (!doctor && (String(doctorId || '').includes('demo') || String(doctorId || '').includes('138cb805') || String(doctorId || '').includes('doctor'))) {
-      doctor = await Doctor.findOne({ where: { email: 'doctor@example.com' } }) ||
-               await Doctor.findOne({ where: { name: 'د. سارة المنصور' } });
+      const demoUser = await User.findOne({ where: { email: 'doctor@example.com' } });
+      if (demoUser) {
+        doctor = await Doctor.findOne({ where: { user_id: demoUser.id } });
+      }
+      if (!doctor) {
+        doctor = await Doctor.findOne({ where: { name: 'د. سارة المنصور' } });
+      }
     }
     if (!doctor) {
       doctor = await Doctor.findOne();
