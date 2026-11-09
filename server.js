@@ -57,6 +57,49 @@ const pendingVerifications = new Map();
 
 // إعداد رفع صور ومستندات التحقق الخاصة بالأطباء (البطاقة، كارنيه النقابة، وصورة الوجه)
 const multer = require('multer');
+
+// --- خدمة تخزين الصور السحابي السريع عبر ImgBB ---
+const IMGBB_API_KEY = process.env.IMGBB_API_KEY || '450adf74bc32bb1ef24aff6e4780c2ec';
+
+async function uploadFileToImgBB(fileObj, fallbackUrl = '') {
+  if (!fileObj) return fallbackUrl || '';
+  try {
+    let buffer = null;
+    const filename = fileObj.originalname || fileObj.filename || 'upload.png';
+
+    if (fileObj.buffer) {
+      buffer = fileObj.buffer;
+    } else if (fileObj.path && fs.existsSync(fileObj.path)) {
+      buffer = fs.readFileSync(fileObj.path);
+    }
+
+    if (!buffer || buffer.length === 0) return fallbackUrl || '';
+
+    const form = new FormData();
+    const mimeType = fileObj.mimetype || 'image/png';
+    const blob = new Blob([buffer], { type: mimeType });
+    form.append('image', blob, filename);
+
+    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+      method: 'POST',
+      body: form
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.data?.url) {
+        console.log(`📸 [ImgBB Cloud] تم رفع ${filename} بنجاح -> ${data.data.url}`);
+        if (fileObj.path && fs.existsSync(fileObj.path)) {
+          try { fs.unlinkSync(fileObj.path); } catch(e){}
+        }
+        return data.data.url;
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️ [ImgBB] تعذر الرفع لـ ${fileObj?.originalname || 'الصورة'}:`, err.message);
+  }
+  return fallbackUrl || (fileObj.filename ? `/uploads/doctors/${fileObj.filename}` : '');
+}
 const fs = require('fs');
 
 // Vercel's function bundle is read-only. Keep new uploads in its writable
@@ -700,18 +743,26 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
       return res.status(400).json({ error: emailCheck.error });
     }
 
-    // 2. التحقق من المستندات المرفوعة
+    // 2. التحقق ورفع المستندات إلى ImgBB Cloud
     const syndicateFrontFile = req.files?.['syndicateFront']?.[0];
     const syndicateBackFile = req.files?.['syndicateBack']?.[0];
     const graduationCertFile = req.files?.['graduationCert']?.[0];
     const facePhotoFile = req.files?.['facePhoto']?.[0];
     const clinicPhotoFile = req.files?.['clinicPhoto']?.[0];
 
-    const syndicateFrontUrl = syndicateFrontFile ? `/uploads/doctors/${syndicateFrontFile.filename}` : (req.body.syndicateFrontUrl || '');
-    const syndicateBackUrl = syndicateBackFile ? `/uploads/doctors/${syndicateBackFile.filename}` : (req.body.syndicateBackUrl || '');
-    const graduationCertUrl = graduationCertFile ? `/uploads/doctors/${graduationCertFile.filename}` : (req.body.graduationCertUrl || '');
-    const facePhotoUrl = facePhotoFile ? `/uploads/doctors/${facePhotoFile.filename}` : (req.body.avatarUrl || req.body.facePhotoUrl || '');
-    const clinicPhotoUrl = clinicPhotoFile ? `/uploads/doctors/${clinicPhotoFile.filename}` : (req.body.clinicPhotoUrl || req.body.clinicPhoto || '');
+    const [
+      syndicateFrontUrl,
+      syndicateBackUrl,
+      graduationCertUrl,
+      facePhotoUrl,
+      clinicPhotoUrl
+    ] = await Promise.all([
+      uploadFileToImgBB(syndicateFrontFile, req.body.syndicateFrontUrl || ''),
+      uploadFileToImgBB(syndicateBackFile, req.body.syndicateBackUrl || ''),
+      uploadFileToImgBB(graduationCertFile, req.body.graduationCertUrl || ''),
+      uploadFileToImgBB(facePhotoFile, req.body.avatarUrl || req.body.facePhotoUrl || ''),
+      uploadFileToImgBB(clinicPhotoFile, req.body.clinicPhotoUrl || req.body.clinicPhoto || '')
+    ]);
 
     const avatarChoice = req.body.avatarUrl || '';
     if (!syndicateFrontFile || !syndicateBackFile || !graduationCertFile || (!facePhotoFile && !avatarChoice)) {
@@ -882,9 +933,11 @@ app.post('/api/auth/register-pharmacy', uploadPharmacyDocs, async (req, res) => 
     const syndicateCardFile = req.files?.['syndicate_card']?.[0];
     const nationalIdFile = req.files?.['national_id_image']?.[0];
 
-    const licenseUrl = licenseFile ? `/uploads/pharmacies/${licenseFile.filename}` : '';
-    const syndicateCardUrl = syndicateCardFile ? `/uploads/pharmacies/${syndicateCardFile.filename}` : '';
-    const nationalIdUrl = nationalIdFile ? `/uploads/pharmacies/${nationalIdFile.filename}` : '';
+    const [licenseUrl, syndicateCardUrl, nationalIdUrl] = await Promise.all([
+      uploadFileToImgBB(licenseFile, req.body.licenseUrl || ''),
+      uploadFileToImgBB(syndicateCardFile, req.body.syndicateCardUrl || ''),
+      uploadFileToImgBB(nationalIdFile, req.body.nationalIdUrl || '')
+    ]);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
@@ -957,9 +1010,11 @@ app.post('/api/auth/register-therapy', uploadTherapyDocs, async (req, res) => {
     const syndicateCardFile = req.files?.['syndicate_card']?.[0];
     const nationalIdFile = req.files?.['national_id_image']?.[0];
 
-    const licenseUrl = licenseFile ? `/uploads/therapy/${licenseFile.filename}` : '';
-    const syndicateCardUrl = syndicateCardFile ? `/uploads/therapy/${syndicateCardFile.filename}` : '';
-    const nationalIdUrl = nationalIdFile ? `/uploads/therapy/${nationalIdFile.filename}` : '';
+    const [licenseUrl, syndicateCardUrl, nationalIdUrl] = await Promise.all([
+      uploadFileToImgBB(licenseFile, req.body.licenseUrl || ''),
+      uploadFileToImgBB(syndicateCardFile, req.body.syndicateCardUrl || ''),
+      uploadFileToImgBB(nationalIdFile, req.body.nationalIdUrl || '')
+    ]);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
@@ -1760,8 +1815,9 @@ const handleUpdateDoctorPhotos = async (req, res) => {
 
     // 1. تحديث صورة الطبيب الشخصية أو الأفتار
     if (profilePhotoFile) {
-      doctor.profile_photo = `/uploads/doctors/${profilePhotoFile.filename}`;
-      doctor.avatar_url = doctor.profile_photo;
+      const imgUrl = await uploadFileToImgBB(profilePhotoFile, `/uploads/doctors/${profilePhotoFile.filename}`);
+      doctor.profile_photo = imgUrl;
+      doctor.avatar_url = imgUrl;
       updatedAny = true;
     } else if (avatarUrl || profilePhoto) {
       const finalPhoto = avatarUrl || profilePhoto;
@@ -1772,7 +1828,8 @@ const handleUpdateDoctorPhotos = async (req, res) => {
 
     // 2. تحديث صورة العيادة أو المركز الطبي
     if (clinicPhotoFile) {
-      doctor.clinic_photo = `/uploads/doctors/${clinicPhotoFile.filename}`;
+      const imgUrl = await uploadFileToImgBB(clinicPhotoFile, `/uploads/doctors/${clinicPhotoFile.filename}`);
+      doctor.clinic_photo = imgUrl;
       updatedAny = true;
     } else if (clinicPhoto !== undefined) {
       doctor.clinic_photo = clinicPhoto;
@@ -2653,7 +2710,7 @@ app.post('/api/appointments/:id/pay', authenticate, uploadReceipt.single('receip
 
     let proofPath = null;
     if (req.file) {
-      proofPath = `/uploads/receipts/${req.file.filename}`;
+      proofPath = await uploadFileToImgBB(req.file, `/uploads/receipts/${req.file.filename}`);
     }
 
     if (paymentMethod === 'CARD') {

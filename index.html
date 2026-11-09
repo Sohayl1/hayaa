@@ -265,7 +265,32 @@
       }
     };
 
+    // خدمة رفع وتخزين الصور السحابي الدائم عبر ImgBB
+    window.uploadToImgBB = async function(file) {
+      if (!file) return null;
+      const apiKey = '450adf74bc32bb1ef24aff6e4780c2ec';
+      try {
+        const form = new FormData();
+        form.append('image', file, file.name || 'image.png');
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+          method: 'POST',
+          body: form
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && data.data?.url) {
+            console.log(`📸 [ImgBB Cloud] تم رفع ${file.name} بنجاح:`, data.data.url);
+            return data.data.url;
+          }
+        }
+      } catch (err) {
+        console.warn('ImgBB client upload error:', err.message);
+      }
+      return null;
+    };
+
     console.log('🔥 [Firebase] تم تهيئة مشروع hayat-d9689 بنجاح وتفعيل تسجيل الدخول بجوجل وقاعدة البيانات Firestore!');
+    console.log('📸 [ImgBB] تم تفعيل خدمة رفع وتخزين الصور السحابية بنجاح!');
   </script>
   <style>
     :root {
@@ -7420,6 +7445,32 @@
       btn.disabled = true;
 
       try {
+        const syndicateFrontFile = document.getElementById('docSyndicateFrontFile').files[0];
+        const syndicateBackFile = document.getElementById('docSyndicateBackFile').files[0];
+        const graduationCertFile = document.getElementById('docGraduationCertFile').files[0];
+        const facePhotoFile = document.getElementById('docFacePhotoFile').files[0];
+        const clinicPhotoFile = document.getElementById('docClinicPhotoFile')?.files?.[0];
+
+        if (!syndicateFrontFile || !syndicateBackFile || !graduationCertFile || !facePhotoFile) {
+          alert('⚠️ يرجى إرفاق المستندات الأربعة كاملة:\n1. كارنيه النقابة (وش)\n2. كارنيه النقابة (ضهر)\n3. شهادة التخرج\n4. صورة واضحة للوجه');
+          btn.innerHTML = '<span>إرسال طلب الانضمام واعتماد المستندات 🛡️</span>';
+          btn.disabled = false;
+          return;
+        }
+
+        btn.innerHTML = '📸 جاري رفع وتأمين المستندات سحابياً (ImgBB Cloud)... ⏳';
+
+        // رفع المستندات إلى ImgBB بالتوازي
+        let [frontUrl, backUrl, gradUrl, faceUrl, clinicUrl] = await Promise.all([
+          window.uploadToImgBB(syndicateFrontFile),
+          window.uploadToImgBB(syndicateBackFile),
+          window.uploadToImgBB(graduationCertFile),
+          window.uploadToImgBB(facePhotoFile),
+          clinicPhotoFile ? window.uploadToImgBB(clinicPhotoFile) : Promise.resolve('')
+        ]);
+
+        btn.innerHTML = '🤖 جاري فحص المستندات بالذكاء الاصطناعي واعتماد الحساب... ⏳';
+
         const formData = new FormData();
         formData.append('name', document.getElementById('docName').value.trim());
         formData.append('specialty', document.getElementById('docSpecialty').value);
@@ -7437,17 +7488,11 @@
         const docPromoVal = promoState.doc.applied ? promoState.doc.code : (document.getElementById('docPromoCode')?.value?.trim() || '');
         formData.append('promoCode', docPromoVal);
 
-        const syndicateFrontFile = document.getElementById('docSyndicateFrontFile').files[0];
-        const syndicateBackFile = document.getElementById('docSyndicateBackFile').files[0];
-        const graduationCertFile = document.getElementById('docGraduationCertFile').files[0];
-        const facePhotoFile = document.getElementById('docFacePhotoFile').files[0];
-
-        if (!syndicateFrontFile || !syndicateBackFile || !graduationCertFile || !facePhotoFile) {
-          alert('⚠️ يرجى إرفاق المستندات الأربعة كاملة:\n1. كارنيه النقابة (وش)\n2. كارنيه النقابة (ضهر)\n3. شهادة التخرج\n4. صورة واضحة للوجه');
-          btn.innerHTML = '<span>إرسال طلب الانضمام واعتماد المستندات 🛡️</span>';
-          btn.disabled = false;
-          return;
-        }
+        if (frontUrl) formData.append('syndicateFrontUrl', frontUrl);
+        if (backUrl) formData.append('syndicateBackUrl', backUrl);
+        if (gradUrl) formData.append('graduationCertUrl', gradUrl);
+        if (faceUrl) formData.append('facePhotoUrl', faceUrl);
+        if (clinicUrl) formData.append('clinicPhotoUrl', clinicUrl);
 
         formData.append('syndicateFront', syndicateFrontFile);
         formData.append('syndicateBack', syndicateBackFile);
@@ -7471,6 +7516,11 @@
               clinic_name: document.getElementById('docClinicName')?.value?.trim() || 'عيادة خاصة',
               consultation_fee: document.getElementById('docConsultationFee').value || '150',
               governorate: document.getElementById('docGovernorate')?.value || 'القاهرة',
+              syndicate_card_front: frontUrl || '',
+              syndicate_card_back: backUrl || '',
+              graduation_cert: gradUrl || '',
+              profile_photo: faceUrl || '',
+              clinic_photo: clinicUrl || '',
               promo_code: docPromoVal || null,
               verification_status: 'PENDING',
               created_at: new Date().toISOString()
@@ -8445,6 +8495,11 @@
                       governorate: fp.governorate || 'القاهرة',
                       phone: fp.phone || '-',
                       consultation_fee: fp.consultation_fee || 150,
+                      syndicate_card_front: fp.syndicate_card_front || '',
+                      syndicate_card_back: fp.syndicate_card_back || '',
+                      graduation_cert: fp.graduation_cert || '',
+                      profile_photo: fp.profile_photo || '',
+                      clinic_photo: fp.clinic_photo || '',
                       verification_status: 'PENDING',
                       User: { email: fp.email, name: fp.name, phone: fp.phone }
                     });
