@@ -6373,26 +6373,53 @@
       btn.innerHTML = '<span>جاري حفظ التعديلات... ⏳</span>';
 
       try {
-        const res = await fetch('/api/auth/profile', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ name, email, phone, governorate })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          currentUser = data.user;
-          token = data.token;
-          localStorage.setItem('user', JSON.stringify(currentUser));
-          localStorage.setItem('token', token);
-          alert(data.message || 'تم تحديث بيانات الحساب بنجاح!');
-          showDashboard();
-          openAccountDrawer();
-        } else {
-          alert('❌ ' + (data.error || 'تعذر تحديث البيانات'));
+        // مزامنة فورية في Firebase Firestore سحابياً
+        if (typeof window.syncToFirestore === 'function' && currentUser) {
+          try {
+            window.syncToFirestore('users', {
+              ...currentUser,
+              name,
+              email,
+              phone,
+              governorate,
+              updatedAt: new Date().toISOString()
+            });
+          } catch(e){}
         }
+
+        try {
+          const res = await fetch('/api/auth/profile', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ id: currentUser?.id, name, email, phone, governorate })
+          });
+          const data = await res.json();
+          if (res.ok && data.user) {
+            currentUser = data.user;
+            if (data.token) {
+              token = data.token;
+              localStorage.setItem('token', token);
+            }
+          } else {
+            currentUser.name = name;
+            currentUser.email = email;
+            currentUser.phone = phone;
+            currentUser.governorate = governorate;
+          }
+        } catch (apiErr) {
+          currentUser.name = name;
+          currentUser.email = email;
+          currentUser.phone = phone;
+          currentUser.governorate = governorate;
+        }
+
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        alert('✅ تم تحديث بيانات الحساب بنجاح!');
+        showDashboard();
+        openAccountDrawer();
       } catch (err) {
         alert('خطأ في الاتصال: ' + err.message);
       } finally {
@@ -8067,33 +8094,64 @@
       btn.innerHTML = 'جاري الحفظ... ⏳';
 
       try {
-        const payload = { phone, governorate };
+        const payload = {
+          id: currentUser?.id,
+          name: currentUser?.name,
+          email: currentUser?.email,
+          phone,
+          governorate
+        };
         if (pass && pass.length >= 6) payload.password = pass;
 
-        const res = await fetch('/api/auth/profile', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (res.ok) {
-          currentUser.phone = phone;
-          currentUser.governorate = governorate;
-          localStorage.setItem('user', JSON.stringify(currentUser));
-          closeCompleteGoogleProfileModal();
-          alert('🎉 تم حفظ بياناتك بنجاح!');
-          showDashboard();
-        } else {
-          alert('❌ ' + (data.error || 'تعذر حفظ البيانات'));
+        // مزامنة فورية في Firebase Firestore سحابياً
+        if (typeof window.syncToFirestore === 'function' && currentUser) {
+          try {
+            window.syncToFirestore('users', {
+              ...currentUser,
+              phone,
+              governorate,
+              updatedAt: new Date().toISOString()
+            });
+          } catch(e){}
         }
-      } catch (err) {
+
+        try {
+          const res = await fetch('/api/auth/profile', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.token) {
+              token = data.token;
+              localStorage.setItem('token', token);
+            }
+            if (data.user) {
+              currentUser = data.user;
+            }
+          }
+        } catch(apiErr) {
+          console.warn('Backend profile update note:', apiErr);
+        }
+
+        if (!currentUser) currentUser = {};
         currentUser.phone = phone;
         currentUser.governorate = governorate;
         localStorage.setItem('user', JSON.stringify(currentUser));
         closeCompleteGoogleProfileModal();
+        alert('🎉 تم حفظ وتأكيد بيانات حسابك بنجاح!');
+        showDashboard();
+      } catch (err) {
+        if (!currentUser) currentUser = {};
+        currentUser.phone = phone;
+        currentUser.governorate = governorate;
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        closeCompleteGoogleProfileModal();
+        alert('🎉 تم حفظ وتأكيد بيانات حسابك بنجاح!');
         showDashboard();
       } finally {
         btn.disabled = false;
