@@ -1201,7 +1201,7 @@ app.post('/api/auth/quick-demo-login', async (req, res) => {
 // تسجيل الدخول والتوثيق بواسطة Google عبر Firebase Auth
 app.post('/api/auth/google-login', async (req, res) => {
   try {
-    const { email, name, photoUrl, uid, role, checkOnly } = req.body;
+    const { email, name, photoUrl, uid, role, checkOnly, phone, governorate } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'البريد الإلكتروني مطلوب للمتابعة بواسطة Google' });
     }
@@ -1248,7 +1248,16 @@ app.post('/api/auth/google-login', async (req, res) => {
       });
     }
 
-    if (!user) {
+    if (user) {
+      if (phone && (!user.phone || user.phone === '01012345678')) {
+        user.phone = String(phone).trim();
+        await user.save();
+      }
+      if (governorate && !user.governorate) {
+        user.governorate = String(governorate).trim();
+        await user.save();
+      }
+    } else {
       const assignedRole = (role && ['PATIENT', 'DOCTOR', 'PHARMACY', 'THERAPY'].includes(role.toUpperCase())) 
         ? role.toUpperCase() 
         : 'PATIENT';
@@ -1257,8 +1266,9 @@ app.post('/api/auth/google-login', async (req, res) => {
         name: name || 'مستخدم Google',
         email: cleanEmail,
         password: randomPassword,
+        phone: phone ? String(phone).trim() : '',
         role: assignedRole,
-        governorate: 'القاهرة'
+        governorate: governorate ? String(governorate).trim() : 'القاهرة'
       });
     }
 

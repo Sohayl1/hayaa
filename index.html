@@ -50,6 +50,7 @@
       collection, 
       addDoc, 
       getDocs, 
+      getDoc,
       doc, 
       setDoc, 
       query, 
@@ -149,6 +150,29 @@
         }
 
         // 2. إذا كان مريضاً:
+        const emLower = (fbUser.email || '').toLowerCase().trim();
+
+        // استرجاع البروفايل المحفوظ مسبقاً من التخزين المحلي الدائم
+        let cachedProfile = {};
+        try {
+          cachedProfile = JSON.parse(localStorage.getItem('haya_profile_' + emLower) || '{}');
+        } catch(e){}
+
+        // استرجاع البروفايل السحابي من Firebase Firestore إن وجد
+        let fsPhone = '';
+        let fsGov = '';
+        try {
+          const docSnap = await getDoc(doc(db, "users", fbUser.uid));
+          if (docSnap && docSnap.exists()) {
+            const uData = docSnap.data();
+            if (uData.phone) fsPhone = uData.phone;
+            if (uData.governorate) fsGov = uData.governorate;
+          }
+        } catch(fsErr){}
+
+        const knownPhone = fsPhone || cachedProfile.phone || '';
+        const knownGov = fsGov || cachedProfile.governorate || 'القاهرة';
+
         const serverRes = await fetch('/api/auth/google-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -157,7 +181,9 @@
             name: fbUser.displayName || 'مستخدم Google',
             photoUrl: fbUser.photoURL || '',
             uid: fbUser.uid,
-            role: role
+            role: role,
+            phone: knownPhone,
+            governorate: knownGov
           })
         });
 
@@ -173,20 +199,37 @@
             id: fbUser.uid,
             name: fbUser.displayName || 'مستخدم Google',
             email: fbUser.email,
-            phone: '',
+            phone: knownPhone,
             role: role,
-            governorate: 'القاهرة',
+            governorate: knownGov,
             photoUrl: fbUser.photoURL || ''
           };
         }
+
+        // تثبيت رقم الهاتف والمحافظة المسترجعة في currentUser
+        if (knownPhone && (!currentUser.phone || currentUser.phone === '01012345678')) {
+          currentUser.phone = knownPhone;
+        }
+        if (knownGov && !currentUser.governorate) {
+          currentUser.governorate = knownGov;
+        }
+
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(currentUser));
+        if (currentUser.phone) {
+          localStorage.setItem('haya_profile_' + emLower, JSON.stringify({
+            phone: currentUser.phone,
+            governorate: currentUser.governorate
+          }));
+        }
 
         try {
           await setDoc(doc(db, "users", fbUser.uid), {
             name: fbUser.displayName || currentUser.name,
             email: fbUser.email,
             photoUrl: fbUser.photoURL || '',
+            phone: currentUser.phone || '',
+            governorate: currentUser.governorate || 'القاهرة',
             role: currentUser.role,
             lastLogin: serverTimestamp(),
             source: 'GOOGLE_AUTH'
@@ -203,8 +246,11 @@
 
         showDashboard();
 
-        // فحص ما إذا كان رقم الهاتف أو المحافظة غير مكتمل في حساب المريض
-        if (!currentUser.phone || currentUser.phone.trim() === '' || currentUser.phone === '01012345678') {
+        // فحص ما إذا كان رقم الهاتف مكتمل مسبقاً، أو تم التخطي في هذه الجلسة
+        const userHasValidPhone = currentUser.phone && currentUser.phone.trim() !== '' && currentUser.phone !== '01012345678';
+        const alreadyDismissed = sessionStorage.getItem('dismissed_google_complete') === 'true';
+
+        if (!userHasValidPhone && !alreadyDismissed) {
           setTimeout(() => {
             if (typeof openCompleteGoogleProfileModal === 'function') {
               openCompleteGoogleProfileModal();
@@ -223,6 +269,30 @@
           b.disabled = false;
           if (b.dataset.origText) b.innerHTML = b.dataset.origText;
         });
+      }
+    };
+
+    // حفظ أو تحديث وثيقة محددة بالمعرف في Firestore
+    window.saveFirestoreDoc = async function(collectionName, docId, data) {
+      try {
+        await setDoc(doc(db, collectionName, docId), {
+          ...data,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        return true;
+      } catch(err) {
+        console.warn('saveFirestoreDoc warning:', err.message);
+        return false;
+      }
+    };
+
+    // جلب وثيقة محددة بالمعرف من Firestore
+    window.getFirestoreDoc = async function(collectionName, docId) {
+      try {
+        const docSnap = await getDoc(doc(db, collectionName, docId));
+        return docSnap.exists() ? docSnap.data() : null;
+      } catch(err) {
+        return null;
       }
     };
 
@@ -8076,6 +8146,7 @@
     function closeCompleteGoogleProfileModal() {
       const modal = document.getElementById('completeGoogleProfileModal');
       if (modal) modal.style.display = 'none';
+      sessionStorage.setItem('dismissed_google_complete', 'true');
     }
 
     async function handleCompleteGoogleProfileSubmit(e) {
