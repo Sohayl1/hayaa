@@ -6092,6 +6092,15 @@
           return makeJsonRes(SEED_FALLBACK_THERAPY);
         }
 
+        if (url.includes('/api/appointments/') && url.endsWith('/cancel')) {
+          const parts = url.split('/');
+          const apptId = parts[3];
+          let saved = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
+          saved = saved.filter(a => a.id !== apptId);
+          localStorage.setItem('gh_appointments', JSON.stringify(saved));
+          return makeJsonRes({ success: true, message: '✅ تم إلغاء طلب الموعد بنجاح' });
+        }
+
         if (url.includes('/api/appointments/my') || url.includes('/api/appointments/doctor-appointments')) {
           const saved = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
           return makeJsonRes(saved);
@@ -6106,7 +6115,7 @@
             doctor_name: bodyObj.doctor_name || 'طبيب معتمد',
             doctor_fee: 150,
             app_fee: 10,
-            price_cents: 16000,
+            price_cents: 160,
             paid: false,
             status: 'pending',
             patient_preferred_date: bodyObj.preferred_day || 'السبت',
@@ -11250,7 +11259,7 @@
             const hasTime = a.status === 'TIME_SET' || !!a.doctor_scheduled_time;
             const isPending = !isPaid && !hasTime;
             const docFee = a.doctor_fee || a.Doctor?.consultation_fee || 150;
-            const totalFee = a.price_cents || (docFee + 10);
+            const totalFee = (a.price_cents && Number(a.price_cents) > 500) ? Math.round(Number(a.price_cents) / 100) : (Number(a.price_cents) || (docFee + 10));
             const reqDay = a.patient_preferred_date || 'اليوم';
             const docName = a.Doctor?.name || 'الطبيب المختص';
             const specObj = a.Doctor?.specialty ? getSpecialtyBadge(a.Doctor.specialty) : null;
@@ -11432,7 +11441,7 @@
                 const hasTime = a.status === 'TIME_SET' || !!a.doctor_scheduled_time;
                 const isWaiting = a.status === 'WAITING_DOCTOR_TIME' || (!hasTime && !isPaid);
                 const docFee = a.doctor_fee || a.Doctor?.consultation_fee || 150;
-                const totalFee = a.price_cents || (docFee + 10);
+                const totalFee = (a.price_cents && Number(a.price_cents) > 500) ? Math.round(Number(a.price_cents) / 100) : (Number(a.price_cents) || (docFee + 10));
                 const reqDay = a.patient_preferred_date || 'اليوم';
 
                 return `
@@ -11492,7 +11501,18 @@
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const appts = await res.json();
-          cachedPatientAppts = Array.isArray(appts) ? appts : [];
+          cachedPatientAppts = Array.isArray(appts) ? appts.filter(a => a && a.status !== 'CANCELLED') : [];
+          // تصحيح فوري لأي قيمة محفورة قديمة 16000 في التخزين المحلي
+          try {
+            let localAppts = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
+            if (Array.isArray(localAppts)) {
+              let updated = false;
+              localAppts.forEach(a => {
+                if (a.price_cents === 16000) { a.price_cents = 160; updated = true; }
+              });
+              if (updated) localStorage.setItem('gh_appointments', JSON.stringify(localAppts));
+            }
+          } catch(e){}
 
           if (Array.isArray(appts)) {
             const statAppts = document.getElementById('statAppts');
@@ -11515,7 +11535,7 @@
           const banner = document.getElementById('topNotificationBanner');
           if (readyToPayAppt) {
             const docFee = readyToPayAppt.doctor_fee || readyToPayAppt.Doctor?.consultation_fee || 150;
-            const totalFee = readyToPayAppt.price_cents || (docFee + 10);
+            const totalFee = (readyToPayAppt.price_cents && Number(readyToPayAppt.price_cents) > 500) ? Math.round(Number(readyToPayAppt.price_cents) / 100) : (Number(readyToPayAppt.price_cents) || (docFee + 10));
             const rawDocName = readyToPayAppt.Doctor?.name || 'الطبيب';
             const cleanDoc = rawDocName.replace(/^(د\.|دكتور)\s*/i, '');
             if (banner) {
@@ -12749,19 +12769,32 @@
     async function cancelAppointmentRequest(apptId) {
       if (!confirm('هل أنت متأكد من رغبتك في إلغاء هذا الطلب؟')) return;
       try {
+        // 1. إزالة فورية من الذاكرة المحلية والواجهة
+        cachedPatientAppts = cachedPatientAppts.filter(a => a.id !== apptId);
+        renderPatientAppointmentsList(false);
+
+        // 2. تحديث التخزين المحلي فوراً
+        try {
+          let localAppts = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
+          localAppts = localAppts.filter(a => a.id !== apptId);
+          localStorage.setItem('gh_appointments', JSON.stringify(localAppts));
+        } catch(e){}
+
+        // 3. إرسال أمر الإلغاء للسيرفر
         const res = await fetch(`/api/appointments/${apptId}/cancel`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        if (res.ok) {
-          alert('✅ تم إلغاء الطلب بنجاح');
-          loadAppointments();
+        if (res.ok || data.success) {
+          alert('✅ تم إلغاء طلب الحجز بنجاح!');
         } else {
-          alert('❌ ' + (data.error || 'تعذر الإلغاء'));
+          alert('❌ ' + (data.error || 'تعذر الإلغاء من السيرفر'));
         }
+        loadAppointments();
       } catch (err) {
-        alert('خطأ: ' + err.message);
+        alert('✅ تم إلغاء الطلب محلياً.');
+        loadAppointments();
       }
     }
 
