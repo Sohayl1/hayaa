@@ -922,9 +922,13 @@
           return;
         }
 
-        const docFee = appt.doctor_fee || appt.Doctor?.consultation_fee || 150;
+        const docFee = (appt.doctor_fee && Number(appt.doctor_fee) > 500)
+          ? Math.round(Number(appt.doctor_fee) / 100)
+          : (appt.doctor_fee || appt.Doctor?.consultation_fee || 150);
         const appFee = appt.app_fee || 10;
-        const total = appt.price_cents || (docFee + appFee);
+        const total = (appt.price_cents && Number(appt.price_cents) > 500)
+          ? Math.round(Number(appt.price_cents) / 100)
+          : (Number(appt.price_cents) || (docFee + appFee));
         currentTotal = total;
 
         document.getElementById('sumDocName').textContent = appt.Doctor ? ('د. ' + appt.Doctor.name.replace(/^د\.\s*/, '')) : 'د. استشاري حياه';

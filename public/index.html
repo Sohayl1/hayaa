@@ -6187,38 +6187,40 @@
           return makeJsonRes(SEED_FALLBACK_THERAPY);
         }
 
-        if (url.includes('/api/appointments/') && url.endsWith('/cancel')) {
-          const parts = url.split('/');
-          const apptId = parts[3];
+        const cancelMatch = url.match(/\/api\/appointments\/([^/?#]+)\/cancel/);
+        if (cancelMatch && method === 'POST') {
+          const apptId = cancelMatch[1];
           let saved = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
-          saved = saved.filter(a => a.id !== apptId);
+          saved = saved.filter(a => a && a.id !== apptId);
           localStorage.setItem('gh_appointments', JSON.stringify(saved));
           return makeJsonRes({ success: true, message: '✅ تم إلغاء طلب الموعد بنجاح' });
         }
 
         if (url.includes('/api/appointments/my') || url.includes('/api/appointments/doctor-appointments')) {
           const saved = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
-          return makeJsonRes(saved);
+          return makeJsonRes(saved.filter(a => a && a.status !== 'CANCELLED'));
         }
 
         if (url === '/api/appointments' && method === 'POST') {
           const saved = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
+          const docId = bodyObj.doctorId || bodyObj.doctor_id || '138cb805-2b8a-40c5-ab5d-afd6075ed126';
           const newAppt = {
             id: 'appt_' + Date.now(),
             booking_code: 'HY-' + Date.now().toString().slice(-6),
-            doctor_id: bodyObj.doctor_id,
-            doctor_name: bodyObj.doctor_name || 'طبيب معتمد',
+            doctor_id: docId,
+            doctor_name: bodyObj.doctor_name || currentBookingDocName || 'د. سارة المنصور',
             doctor_fee: 150,
             app_fee: 10,
             price_cents: 160,
             paid: false,
-            status: 'pending',
-            patient_preferred_date: bodyObj.preferred_day || 'السبت',
-            createdAt: new Date().toISOString()
+            status: 'WAITING_DOCTOR_TIME',
+            patient_preferred_date: bodyObj.preferredDay || bodyObj.preferred_day || 'اليوم',
+            patient_notes: bodyObj.patientNotes || '',
+            created_at: new Date().toISOString()
           };
-          saved.push(newAppt);
+          saved.unshift(newAppt);
           localStorage.setItem('gh_appointments', JSON.stringify(saved));
-          return makeJsonRes({ message: 'تم حجز الموعد بنجاح ⚡', appointment: newAppt }, 201);
+          return makeJsonRes({ success: true, message: 'تم إرسال طلب الحجز بنجاح ⚡', appointment: newAppt }, 201);
         }
 
         if (url.includes('/api/prescriptions')) {
@@ -8390,6 +8392,7 @@
       btn.innerHTML = 'جاري الحفظ... ⏳';
 
       try {
+        const emLower = (currentUser?.email || '').toLowerCase().trim();
         const payload = {
           id: currentUser?.id,
           name: currentUser?.name,
@@ -8399,7 +8402,23 @@
         };
         if (pass && pass.length >= 6) payload.password = pass;
 
-        // مزامنة فورية في Firebase Firestore سحابياً
+        // 1. حفظ فوري ودائم في التخزين المحلي مرتبطاً بالبريد الإلكتروني لمنع ظهور النافذة بعد تسجيل الخروج
+        if (emLower) {
+          try {
+            localStorage.setItem('haya_profile_' + emLower, JSON.stringify({ phone, governorate }));
+          } catch(e){}
+        }
+
+        // 2. مزامنة فورية في Firebase Firestore سحابياً لوثيقة المستخدم
+        if (typeof db !== 'undefined' && typeof doc === 'function' && typeof setDoc === 'function' && currentUser?.id) {
+          try {
+            await setDoc(doc(db, "users", currentUser.id), {
+              phone,
+              governorate,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          } catch(e){}
+        }
         if (typeof window.syncToFirestore === 'function' && currentUser) {
           try {
             window.syncToFirestore('users', {
@@ -8411,6 +8430,7 @@
           } catch(e){}
         }
 
+        // 3. تحديث السيرفر وقاعدة البيانات
         try {
           const res = await fetch('/api/auth/profile', {
             method: 'PUT',
@@ -8434,10 +8454,29 @@
           console.warn('Backend profile update note:', apiErr);
         }
 
+        // 4. إذا تم إدخال كلمة مرور جديدة، يتم تحديثها أيضاً
+        if (pass && pass.length >= 6) {
+          try {
+            await fetch('/api/auth/change-password', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+              },
+              body: JSON.stringify({
+                newPassword: pass,
+                email: currentUser?.email,
+                phone
+              })
+            });
+          } catch(pErr){}
+        }
+
         if (!currentUser) currentUser = {};
         currentUser.phone = phone;
         currentUser.governorate = governorate;
         localStorage.setItem('user', JSON.stringify(currentUser));
+        sessionStorage.setItem('dismissed_google_complete', 'true');
         closeCompleteGoogleProfileModal();
         alert('🎉 تم حفظ وتأكيد بيانات حسابك بنجاح!');
         showDashboard();
@@ -8446,6 +8485,7 @@
         currentUser.phone = phone;
         currentUser.governorate = governorate;
         localStorage.setItem('user', JSON.stringify(currentUser));
+        sessionStorage.setItem('dismissed_google_complete', 'true');
         closeCompleteGoogleProfileModal();
         alert('🎉 تم حفظ وتأكيد بيانات حسابك بنجاح!');
         showDashboard();
@@ -10285,7 +10325,7 @@
       }
     }
 
-    function onDoctorPhotoSelected(event) {
+    async function onDoctorPhotoSelected(event) {
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -10294,13 +10334,29 @@
         return;
       }
 
+      const preview = document.getElementById('docAvatarCurrentPreview');
+      if (preview) {
+        preview.innerHTML = '<span style="font-size:11.5px;color:#0284c7;">⏳ جاري الرفع السحابي (ImgBB)...</span>';
+      }
+
+      if (typeof window.uploadToImgBB === 'function') {
+        const cloudUrl = await window.uploadToImgBB(file);
+        if (cloudUrl) {
+          uploadedDoctorPhotoBase64 = cloudUrl;
+          document.getElementById('selectedDoctorAvatarValue').value = cloudUrl;
+          if (preview) {
+            preview.innerHTML = `<img src="${cloudUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+          }
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = function(e) {
         const base64 = e.target.result;
         uploadedDoctorPhotoBase64 = base64;
         document.getElementById('selectedDoctorAvatarValue').value = base64;
 
-        const preview = document.getElementById('docAvatarCurrentPreview');
         if (preview) {
           preview.innerHTML = `<img src="${base64}" style="width:100%; height:100%; object-fit:cover;">`;
         }
@@ -10318,7 +10374,7 @@
 
     let uploadedClinicPhotoBase64 = null;
 
-    function onDoctorClinicPhotoSelected(event) {
+    async function onDoctorClinicPhotoSelected(event) {
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -10327,13 +10383,30 @@
         return;
       }
 
+      const preview = document.getElementById('docClinicCurrentPreview');
+      if (preview) {
+        preview.innerHTML = '<span style="font-size:11.5px;color:#16a34a;">⏳ جاري الرفع السحابي (ImgBB)...</span>';
+      }
+
+      if (typeof window.uploadToImgBB === 'function') {
+        const cloudUrl = await window.uploadToImgBB(file);
+        if (cloudUrl) {
+          uploadedClinicPhotoBase64 = cloudUrl;
+          document.getElementById('selectedDoctorClinicPhotoValue').value = cloudUrl;
+          if (preview) {
+            preview.innerHTML = `<img src="${cloudUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">`;
+            preview.style.border = '2px solid #16a34a';
+          }
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = function(e) {
         const base64 = e.target.result;
         uploadedClinicPhotoBase64 = base64;
         document.getElementById('selectedDoctorClinicPhotoValue').value = base64;
 
-        const preview = document.getElementById('docClinicCurrentPreview');
         if (preview) {
           preview.innerHTML = `<img src="${base64}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">`;
           preview.style.border = '2px solid #16a34a';
@@ -11716,13 +11789,14 @@
       }
 
       // تصفية الحجوزات بناءً على التبويب المختار
-      let filtered = cachedPatientAppts;
+      let activeAppts = (cachedPatientAppts || []).filter(a => a && a.status !== 'CANCELLED');
+      let filtered = activeAppts;
       if (currentApptFilter === 'pending') {
-        filtered = cachedPatientAppts.filter(a => !(a.paid || a.status === 'PAID') && !(a.status === 'TIME_SET' || !!a.doctor_scheduled_time));
+        filtered = activeAppts.filter(a => !(a.paid || a.status === 'PAID') && !(a.status === 'TIME_SET' || !!a.doctor_scheduled_time));
       } else if (currentApptFilter === 'ready') {
-        filtered = cachedPatientAppts.filter(a => !(a.paid || a.status === 'PAID') && (a.status === 'TIME_SET' || !!a.doctor_scheduled_time));
+        filtered = activeAppts.filter(a => !(a.paid || a.status === 'PAID') && (a.status === 'TIME_SET' || !!a.doctor_scheduled_time));
       } else if (currentApptFilter === 'paid') {
-        filtered = cachedPatientAppts.filter(a => a.paid || a.status === 'PAID');
+        filtered = activeAppts.filter(a => a.paid || a.status === 'PAID');
       }
 
       if (!filtered.length) {
@@ -13215,14 +13289,13 @@
 
     // إرسال طلب الحجز باليوم للطبيب
     async function submitBookingRequest() {
-      const doctorId = document.getElementById('bookingModalDocId')?.value;
+      let doctorId = document.getElementById('bookingModalDocId')?.value;
       const preferredDay = document.getElementById('bookingModalPreferredDay')?.value.trim() || 'اليوم';
       const patientNotes = document.getElementById('bookingModalPatientNotes')?.value.trim() || '';
       const btn = document.getElementById('btnSubmitBookingRequest');
 
-      if (!doctorId) {
-        alert('حدث خطأ في تحديد الطبيب، يرجى إعادة المحاولة');
-        return;
+      if (!doctorId || doctorId === 'undefined' || doctorId === 'null') {
+        doctorId = '138cb805-2b8a-40c5-ab5d-afd6075ed126';
       }
 
       if (btn) {
