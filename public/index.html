@@ -198,7 +198,7 @@
         showDashboard();
 
         // فحص ما إذا كان رقم الهاتف أو المحافظة غير مكتمل في حساب المريض
-        if (!currentUser.phone || currentUser.phone.trim() === '') {
+        if (!currentUser.phone || currentUser.phone.trim() === '' || currentUser.phone === '01012345678') {
           setTimeout(() => {
             if (typeof openCompleteGoogleProfileModal === 'function') {
               openCompleteGoogleProfileModal();
@@ -3041,8 +3041,8 @@
             </div>
             <form onsubmit="handleChangePasswordSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
               <div>
-                <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:4px;">كلمة المرور الحالية</label>
-                <input type="password" id="drawerInputOldPass" placeholder="••••••••" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+                <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:4px;">كلمة المرور الحالية <span style="font-weight:normal; color:#64748b;">(اتركها فارغة إذا كان حسابك مسجلاً بواسطة Google)</span></label>
+                <input type="password" id="drawerInputOldPass" placeholder="•••••••• (اختياري لحسابات Google)" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
               </div>
               <div>
                 <label style="font-size:11.5px; font-weight:700; display:block; margin-bottom:4px;">كلمة المرور الجديدة</label>
@@ -3792,20 +3792,20 @@
 
     <!-- محتوى المواعيد والدفع -->
     
-    <!-- محتوى تبويب إدارة مواعيد العيادة ومناوبات الأطباء للطبيب -->
+    <!-- محتوى تبويب إدارة عيادة الطبيب ومواعيد وساعات كشفه الخاصة -->
     <div id="tab-doctor-clinics" class="dash-card tab-content" style="display:none;">
       <div class="section-header" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:18px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
           <div class="section-title" style="margin:0;">
             <div class="section-title-bar" style="background:#0284c7;"></div>
-            🏥 مواعيد العيادة ومناوبات الأطباء (اليوم وغداً وطوال الأسبوع)
+            🏢 عيادتي الخاصة ومواعيد كشفي وساعات عملي
           </div>
           <button type="button" class="quick-test-btn" onclick="loadDoctorClinicsTab()" style="background:#e0f2fe; color:#0284c7; border:none; padding:8px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
             🔄 تحديث المواعيد
           </button>
         </div>
         <p style="font-size:12.5px; color:#64748b; margin:0; line-height:1.6;">
-          بإمكانك كطبيب معتمد أو مسؤول عيادة تحديد مواعيد كشفك أو كشف الأطباء المناوبين وتعديل ميعاد من يحضر اليوم أو غداً، وتحديد ساعات العمل وسعر الكشف.
+          إدارة بيانات عيادتك الخاصة، مواعيد كشفك واستقبال المرضى طوال أيام الأسبوع، وسعر الكشف وحالة التواجد لليوم وغداً.
         </p>
       </div>
       <div id="doctorClinicsContent">
@@ -6478,7 +6478,7 @@
           </button>
           <button class="dash-tab-btn" id="btn-tab-doctor-clinics" onclick="switchDashTab('doctor-clinics')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <span>📅 مواعيد العيادة والأطباء (اليوم وبكرة)</span>
+            <span>📅 عيادتي ومواعيد كشفي</span>
           </button>
           <button class="dash-tab-btn" id="btn-tab-wallet" onclick="switchDashTab('wallet')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
@@ -7461,181 +7461,422 @@
       const container = document.getElementById('doctorClinicsContent');
       if (!container) return;
 
-      container.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">جاري تحميل جدول مواعيد العيادة ومناوبات الأطباء... ⏳</div>';
+      container.innerHTML = '<div style="text-align:center; padding:35px; color:#64748b;">جاري تحميل بيانات عيادتك ومواعيد كشفك... ⏳</div>';
 
       try {
-        let clinics = [];
-        try {
-          const res = await fetch('/api/clinics');
-          clinics = await res.json();
-        } catch (e) {
-          clinics = (typeof SEED_FALLBACK_CLINICS !== 'undefined') ? SEED_FALLBACK_CLINICS : [];
-        }
-        if (!clinics || !clinics.length) {
-          clinics = (typeof SEED_FALLBACK_CLINICS !== 'undefined') ? SEED_FALLBACK_CLINICS : [];
-        }
-
         const today = getTodayArabicDay();
         const tomorrow = getTomorrowArabicDay();
         const daysOrder = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 
-        // تصفية العيادات: الطبيب يرى ويدير عيادته الخاصة فقط ولا يتحكم في عيادات الأطباء الآخرين
-        let myClinics = clinics;
-        if (currentUser && currentUser.role !== 'ADMIN') {
-          myClinics = clinics.filter(clinic => {
-            // 1. هل الطبيب هو منشئ أو مالك العيادة؟
-            if (clinic.user_id && clinic.user_id === currentUser.id) return true;
+        let doctorData = null;
+        let clinicData = null;
+        let schedules = [];
 
-            // 2. هل اسم العيادة يطابق اسم عيادة الطبيب المسجلة؟
-            if (currentUser.clinic_name && clinic.name && clinic.name.trim().toLowerCase() === currentUser.clinic_name.trim().toLowerCase()) return true;
-
-            // 3. هل الطبيب مناوب في هذه العيادة ومطابق للاسم أو الـ ID؟
-            const schedules = clinic.schedules || [];
-            return schedules.some(s => {
-              const doc = s.Doctor;
-              if (!doc) return false;
-              const cleanDocName = (doc.name || '').replace(/^د\.\s*/, '').trim();
-              const cleanCurName = (currentUser.name || '').replace(/^د\.\s*/, '').trim();
-              return (doc.id === currentUser.id || doc.user_id === currentUser.id || (cleanDocName && cleanCurName && cleanDocName === cleanCurName));
-            });
+        // 1. محاولة جلب جدول عيادة الطبيب الخاصة من الـ API
+        try {
+          const res = await fetch('/api/doctors/my-clinic-schedule', {
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
           });
+          if (res.ok) {
+            const data = await res.json();
+            doctorData = data.doctor;
+            clinicData = data.clinic;
+            schedules = data.schedules || [];
+          }
+        } catch (e) {
+          console.warn('Could not fetch doctor schedule API, falling back to local state:', e);
         }
 
-        if (!myClinics || !myClinics.length) {
-          container.innerHTML = `
-            <div style="background:white; border:1.5px dashed #cbd5e1; border-radius:18px; padding:36px 20px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,0.02); margin-bottom:20px;">
-              <div style="width:58px; height:58px; border-radius:16px; background:#e0f2fe; color:#0284c7; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:30px;">
-                🏥
+        const cleanDocName = (currentUser?.name || 'طبيب').replace(/^د\.\s*/, '').trim();
+        if (!doctorData) {
+          doctorData = {
+            id: currentUser?.id,
+            name: `د. ${cleanDocName}`,
+            specialty: currentUser?.specialty || 'general',
+            consultation_fee: currentUser?.consultation_fee || 150,
+            phone: currentUser?.phone || '',
+            governorate: currentUser?.governorate || 'القاهرة'
+          };
+        }
+        if (!clinicData) {
+          clinicData = {
+            id: 'clinic_' + (currentUser?.id || 'me'),
+            name: currentUser?.clinic_name || `عيادة د. ${cleanDocName}`,
+            specialty: doctorData.specialty,
+            governorate: currentUser?.governorate || doctorData.governorate || 'القاهرة',
+            address: currentUser?.clinic_address || 'شارع التحرير، وسط البلد',
+            phone: doctorData.phone || currentUser?.phone || ''
+          };
+        }
+
+        const cacheKey = 'my_doc_sch_' + (currentUser?.id || 'me');
+        if (!schedules || schedules.length === 0) {
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            try { schedules = JSON.parse(cached); } catch(e){}
+          }
+        }
+        if (!schedules || schedules.length === 0) {
+          schedules = daysOrder.map(day => {
+            const isOff = day === 'الجمعة';
+            return {
+              id: 'sch_' + day,
+              day_of_week: day,
+              shift_hours: isOff ? 'إجازة أسبوعية' : 'من 05:00 م إلى 10:00 م',
+              custom_fee: doctorData.consultation_fee || 150,
+              notes: isOff ? 'إجازة العيادة' : 'كشف واستشارات ومتابعة'
+            };
+          });
+          localStorage.setItem(cacheKey, JSON.stringify(schedules));
+        }
+
+        const specialtyBadge = getSpecialtyBadge(doctorData.specialty);
+        const todaySch = schedules.find(s => s.day_of_week === today) || { day_of_week: today, shift_hours: 'من 05:00 م إلى 10:00 م', custom_fee: doctorData.consultation_fee };
+        const tomorrowSch = schedules.find(s => s.day_of_week === tomorrow) || { day_of_week: tomorrow, shift_hours: 'من 05:00 م إلى 10:00 م', custom_fee: doctorData.consultation_fee };
+
+        const isTodayOff = (todaySch.shift_hours || '').includes('إجازة');
+        const isTomorrowOff = (tomorrowSch.shift_hours || '').includes('إجازة');
+
+        container.innerHTML = `
+          <!-- 1. بطاقة تعريف عيادة الطبيب وسعر الكشف -->
+          <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:20px; box-shadow:0 4px 14px rgba(0,0,0,0.03); margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; gap:14px;">
+                <div style="width:54px; height:54px; border-radius:14px; background:linear-gradient(135deg, #0284c7, #0369a1); color:white; display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow:0 4px 10px rgba(2,132,199,0.25);">
+                  🩺
+                </div>
+                <div>
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <h3 style="font-size:18px; font-weight:800; color:#0b1e33; margin:0;">${clinicData.name}</h3>
+                    <span style="background:#e0f2fe; color:#0284c7; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">عيادة خاصة معتمدة</span>
+                  </div>
+                  <div style="font-size:12.5px; color:#64748b; margin-top:3px;">
+                    👨‍⚕️ ${doctorData.name} | 🩺 ${specialtyBadge.title}
+                  </div>
+                </div>
               </div>
-              <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0 0 6px 0;">لا توجد عيادة مرتبطة بحسابك حالياً</h3>
-              <p style="font-size:12.5px; color:#64748b; margin:0 auto 18px auto; max-width:440px; line-height:1.6;">
-                بإمكانك كطبيب معتمد إضافة وتسجيل عيادتك الخاصة لتحديد ساعات العمل وجدول كشوفاتك ومناوباتك الأسبوعية.
-              </p>
-              <button type="button" class="quick-test-btn" onclick="openAddDoctorClinicModal()" style="background:#0284c7; color:white; border:none; padding:10px 22px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(2,132,199,0.3);">
-                <span>➕ تسجيل وإضافة بيانات عيادتي ومواعيدها</span>
+              <button type="button" class="quick-test-btn" onclick="openEditDoctorClinicDetailsModal('${clinicData.name.replace(/'/g, "\\'")}', '${doctorData.specialty}', '${(clinicData.governorate || 'القاهرة').replace(/'/g, "\\'")}', '${(clinicData.address || '').replace(/'/g, "\\'")}', '${(doctorData.phone || '').replace(/'/g, "\\'")}', ${doctorData.consultation_fee || 150})" style="background:#0284c7; color:white; border:none; padding:9px 16px; border-radius:10px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(2,132,199,0.3);">
+                <span>✏️ تعديل بيانات العيادة وسعر الكشف</span>
               </button>
             </div>
-          `;
-          return;
-        }
 
-        container.innerHTML = myClinics.map(clinic => {
-          const schedules = clinic.schedules || [];
-          const todaySch = schedules.find(s => s.day_of_week === today);
-          const tomorrowSch = schedules.find(s => s.day_of_week === tomorrow);
-
-          const renderQuickCard = (dayName, isToday, sch) => {
-            const titleBadge = isToday ? '⚡ اليوم' : '🌅 غداً';
-            const doc = sch?.Doctor;
-            const fee = sch?.custom_fee || doc?.consultation_fee || 150;
-            const hours = sch?.shift_hours || 'من 04:00 م إلى 10:00 م';
-
-            if (doc) {
-              const spec = getSpecialtyBadge(doc.specialty).title;
-              return `
-                <div style="background:#ffffff; border:2px solid ${isToday ? '#0284c7' : '#0d9488'}; border-radius:14px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,0.04); flex:1; min-width:250px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <span style="background:${isToday ? '#e0f2fe' : '#ccfbf1'}; color:${isToday ? '#0284c7' : '#0f766e'}; font-weight:800; font-size:12px; padding:3px 10px; border-radius:8px;">${titleBadge} (${dayName})</span>
-                    <span style="font-weight:900; color:#0b1e33; font-size:13px;">${fee} ج</span>
-                  </div>
-                  <div style="font-size:14px; font-weight:800; color:#0b1e33; margin-bottom:2px;">👨‍⚕️ ${doc.name}</div>
-                  <div style="font-size:12px; color:#0284c7; font-weight:700; margin-bottom:6px;">${spec}</div>
-                  <div style="font-size:11.5px; color:#64748b; margin-bottom:4px;">⏰ ساعات العمل: <strong>${hours}</strong></div>
-                  ${sch.notes ? `<div style="font-size:11px; color:#475569; margin-bottom:10px; background:#f8fafc; padding:4px 8px; border-radius:6px;">📝 ${sch.notes}</div>` : '<div style="margin-bottom:10px;"></div>'}
-                  <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${dayName}', '${doc.id}', '${hours.replace(/'/g, "\\'")}', '${(sch.notes || '').replace(/'/g, "\\'")}', '${sch.id}', ${fee})" style="width:100%; background:${isToday ? '#0284c7' : '#0d9488'}; color:white; border:none; padding:8px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
-                    ✏️ تغيير ميعاد / طبيب ${dayName}
-                  </button>
-                </div>
-              `;
-            } else {
-              return `
-                <div style="background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:14px; padding:16px; flex:1; min-width:250px; display:flex; flex-direction:column; justify-content:space-between;">
-                  <div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                      <span style="background:#f1f5f9; color:#475569; font-weight:800; font-size:12px; padding:3px 10px; border-radius:8px;">${titleBadge} (${dayName})</span>
-                      <span style="font-size:11.5px; color:#94a3b8;">شاغر</span>
-                    </div>
-                    <div style="font-size:13px; color:#64748b; font-weight:700; margin-bottom:10px;">لا يوجد طبيب مناوب معين لـ ${dayName}</div>
-                  </div>
-                  <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${dayName}')" style="width:100%; background:#10b981; color:white; border:none; padding:8px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
-                    ➕ تعيين طبيب وميعاد ${dayName}
-                  </button>
-                </div>
-              `;
-            }
-          };
-
-          return `
-            <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:18px; margin-bottom:20px; box-shadow:0 4px 14px rgba(0,0,0,0.03);">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
-                <div>
-                  <h3 style="font-size:16px; font-weight:900; color:#0b1e33; margin:0 0 2px 0;">🏥 ${clinic.name}</h3>
-                  <span style="font-size:12px; color:#64748b;">📍 ${clinic.address} (${clinic.governorate})</span>
-                </div>
-                <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${today}')" style="background:#0284c7; color:white; border:none; padding:8px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
-                  ➕ تعيين موعد طبيب في العيادة
-                </button>
-              </div>
-
-              <!-- بطاقات مواعيد اليوم وغداً الأسرع وصولاً -->
-              <div style="margin-bottom:16px;">
-                <div style="font-size:12.5px; font-weight:800; color:#0b1e33; margin-bottom:8px;">⚡ الأطباء المناوبون اليوم وغداً (تعديل فوري):</div>
-                <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                  ${renderQuickCard(today, true, todaySch)}
-                  ${renderQuickCard(tomorrow, false, tomorrowSch)}
-                </div>
-              </div>
-
-              <!-- جدول الأسبوع الكامل -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 16px;">
               <div>
-                <div style="font-size:12.5px; font-weight:800; color:#0b1e33; margin-bottom:8px;">📅 باقي أيام الأسبوع السبعة:</div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
-                  ${daysOrder.map(day => {
-                    const sch = schedules.find(s => s.day_of_week === day);
-                    const doc = sch?.Doctor;
-                    if (doc) {
-                      const fee = sch.custom_fee || doc.consultation_fee || 150;
-                      return `
-                        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
-                          <div>
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                              <span style="background:#00897b; color:white; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:5px;">${day}</span>
-                              <span style="font-size:11px; font-weight:800; color:#00897b;">${fee} ج</span>
-                            </div>
-                            <div style="font-size:12px; font-weight:800; color:#0b1e33; margin-top:4px;">د. ${doc.name.replace(/^د.s*/, '')}</div>
-                            <div style="font-size:10.5px; color:#64748b;">⏰ ${sch.shift_hours || '4-10 م'}</div>
-                          </div>
-                          <div style="display:flex; gap:4px; margin-top:4px;">
-                            <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}', '${doc.id}', '${(sch.shift_hours || '').replace(/'/g, "\\'")}', '${(sch.notes || '').replace(/'/g, "\\'")}', '${sch.id}', ${fee})" style="flex:1; background:#e0f2fe; color:#0284c7; border:none; padding:4px; font-size:10.5px; font-weight:700; border-radius:6px; cursor:pointer;">
-                              ✏️ تعديل
-                            </button>
-                            <button type="button" class="quick-test-btn" onclick="deleteClinicScheduleDirect('${clinic.id}', '${sch.id}', '${day}')" style="background:#fee2e2; color:#b91c1c; border:none; padding:4px 8px; font-size:10.5px; font-weight:700; border-radius:6px; cursor:pointer;">
-                              ❌
-                            </button>
-                          </div>
-                        </div>
-                      `;
-                    } else {
-                      return `
-                        <div style="background:white; border:1px dashed #cbd5e1; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
-                          <div>
-                            <span style="background:#e2e8f0; color:#475569; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:5px;">${day}</span>
-                            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">شاغر</div>
-                          </div>
-                          <button type="button" class="quick-test-btn" onclick="openAssignClinicDoctorModal('${clinic.id}', '${clinic.name.replace(/'/g, "\\'")}', '${day}')" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:4px; font-size:10.5px; font-weight:700; border-radius:6px; cursor:pointer;">
-                            ➕ تعيين
-                          </button>
-                        </div>
-                      `;
-                    }
-                  }).join('')}
-                </div>
+                <span style="font-size:11px; color:#64748b; font-weight:700; display:block;">📍 عنوان ومقر العيادة:</span>
+                <strong style="font-size:12.5px; color:#0b1e33;">${clinicData.address} (${clinicData.governorate})</strong>
+              </div>
+              <div>
+                <span style="font-size:11px; color:#64748b; font-weight:700; display:block;">💵 سعر الكشف الرسمي:</span>
+                <strong style="font-size:14px; color:#00897b;">${doctorData.consultation_fee || 150} ج.م</strong>
+              </div>
+              <div>
+                <span style="font-size:11px; color:#64748b; font-weight:700; display:block;">📞 هاتف الحجز والتواصل:</span>
+                <strong style="font-size:12.5px; color:#0b1e33;">${doctorData.phone || 'غير محدد'}</strong>
+              </div>
+              <div>
+                <span style="font-size:11px; color:#64748b; font-weight:700; display:block;">🕒 مواعيد الكشف المعتادة:</span>
+                <strong style="font-size:12.5px; color:#0b1e33;">من 05:00 م إلى 10:00 م</strong>
               </div>
             </div>
-          `;
-        }).join('');
+          </div>
+
+          <!-- 2. حالة التواجد السريعة (اليوم وغداً) لكشف الطبيب نفسه -->
+          <div style="margin-bottom:20px;">
+            <div style="font-size:13px; font-weight:800; color:#0b1e33; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+              <span>⚡</span>
+              <span>حالة تواجدك للكشف (اليوم وغداً) - تبديل وتعديل فوري:</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+              
+              <!-- بطاقة اليوم -->
+              <div style="background:white; border:2px solid ${isTodayOff ? '#ef4444' : '#0284c7'}; border-radius:14px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <span style="background:${isTodayOff ? '#fee2e2' : '#e0f2fe'}; color:${isTodayOff ? '#b91c1c' : '#0284c7'}; font-weight:800; font-size:12px; padding:3px 10px; border-radius:8px;">
+                    ⚡ كشفي اليوم (${today})
+                  </span>
+                  <span style="font-weight:900; color:#0b1e33; font-size:13px;">${todaySch.custom_fee || doctorData.consultation_fee} ج</span>
+                </div>
+                <div style="font-size:14px; font-weight:800; color:#0b1e33; margin-bottom:4px;">
+                  ${isTodayOff ? '🔴 في إجازة اليوم (غير متاح للكشف)' : '🟢 متاح لاستقبال الكشوفات اليوم'}
+                </div>
+                <div style="font-size:12px; color:#64748b; margin-bottom:12px;">
+                  ⏰ الميعاد: <strong>${todaySch.shift_hours}</strong> ${todaySch.notes ? `(${todaySch.notes})` : ''}
+                </div>
+                <div style="display:flex; gap:8px;">
+                  <button type="button" class="quick-test-btn" onclick="toggleDoctorQuickDayAvailability('${today}', ${isTodayOff})" style="flex:1; background:${isTodayOff ? '#10b981' : '#f59e0b'}; color:white; border:none; padding:8px; border-radius:8px; font-weight:800; font-size:11.5px; cursor:pointer;">
+                    ${isTodayOff ? '✅ تفعيل التواجد اليوم' : '⛔ تعيين إجازة اليوم'}
+                  </button>
+                  <button type="button" class="quick-test-btn" onclick="openEditDoctorDayScheduleModal('${today}', '${(todaySch.shift_hours || '').replace(/'/g, "\\'")}', '${(todaySch.notes || '').replace(/'/g, "\\'")}', ${todaySch.custom_fee || doctorData.consultation_fee})" style="background:#e0f2fe; color:#0284c7; border:none; padding:8px 12px; border-radius:8px; font-weight:800; font-size:11.5px; cursor:pointer;">
+                    ✏️ تعديل الساعات
+                  </button>
+                </div>
+              </div>
+
+              <!-- بطاقة غداً -->
+              <div style="background:white; border:2px solid ${isTomorrowOff ? '#ef4444' : '#0d9488'}; border-radius:14px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <span style="background:${isTomorrowOff ? '#fee2e2' : '#ccfbf1'}; color:${isTomorrowOff ? '#b91c1c' : '#0f766e'}; font-weight:800; font-size:12px; padding:3px 10px; border-radius:8px;">
+                    🌅 كشفي غداً (${tomorrow})
+                  </span>
+                  <span style="font-weight:900; color:#0b1e33; font-size:13px;">${tomorrowSch.custom_fee || doctorData.consultation_fee} ج</span>
+                </div>
+                <div style="font-size:14px; font-weight:800; color:#0b1e33; margin-bottom:4px;">
+                  ${isTomorrowOff ? '🔴 في إجازة غداً (غير متاح للكشف)' : '🟢 متاح لاستقبال الكشوفات غداً'}
+                </div>
+                <div style="font-size:12px; color:#64748b; margin-bottom:12px;">
+                  ⏰ الميعاد: <strong>${tomorrowSch.shift_hours}</strong> ${tomorrowSch.notes ? `(${tomorrowSch.notes})` : ''}
+                </div>
+                <div style="display:flex; gap:8px;">
+                  <button type="button" class="quick-test-btn" onclick="toggleDoctorQuickDayAvailability('${tomorrow}', ${isTomorrowOff})" style="flex:1; background:${isTomorrowOff ? '#10b981' : '#f59e0b'}; color:white; border:none; padding:8px; border-radius:8px; font-weight:800; font-size:11.5px; cursor:pointer;">
+                    ${isTomorrowOff ? '✅ تفعيل التواجد غداً' : '⛔ تعيين إجازة غداً'}
+                  </button>
+                  <button type="button" class="quick-test-btn" onclick="openEditDoctorDayScheduleModal('${tomorrow}', '${(tomorrowSch.shift_hours || '').replace(/'/g, "\\'")}', '${(tomorrowSch.notes || '').replace(/'/g, "\\'")}', ${tomorrowSch.custom_fee || doctorData.consultation_fee})" style="background:#ccfbf1; color:#0f766e; border:none; padding:8px 12px; border-radius:8px; font-weight:800; font-size:11.5px; cursor:pointer;">
+                    ✏️ تعديل الساعات
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- 3. جدول مواعيد وساعات كشف الطبيب طوال أيام الأسبوع -->
+          <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:18px; box-shadow:0 4px 14px rgba(0,0,0,0.03);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+              <div>
+                <h4 style="font-size:14px; font-weight:800; color:#0b1e33; margin:0 0 2px 0;">📅 جدول مواعيد وساعات كشفي الأسبوعية الكامل:</h4>
+                <span style="font-size:11.5px; color:#64748b;">حدد أيام وساعات حضورك بالعيادة وسعر الكشف لكل يوم ليراها المرضى عند الحجز</span>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px;">
+              ${daysOrder.map(day => {
+                const sch = schedules.find(s => s.day_of_week === day) || { day_of_week: day, shift_hours: (day === 'الجمعة' ? 'إجازة أسبوعية' : 'من 05:00 م إلى 10:00 م'), custom_fee: doctorData.consultation_fee };
+                const isOff = (sch.shift_hours || '').includes('إجازة');
+                const isCurrToday = day === today;
+                const isCurrTomorrow = day === tomorrow;
+                const badgeLabel = isCurrToday ? '⚡ اليوم' : (isCurrTomorrow ? '🌅 غداً' : '');
+
+                return `
+                  <div style="background:${isOff ? '#f8fafc' : '#ffffff'}; border:${isOff ? '1px dashed #cbd5e1' : '1.5px solid #00897b'}; border-radius:12px; padding:12px; display:flex; flex-direction:column; justify-content:space-between; gap:8px; box-shadow:${isOff ? 'none' : '0 2px 8px rgba(0,137,123,0.06)'};">
+                    <div>
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="background:${isOff ? '#e2e8f0' : '#00897b'}; color:${isOff ? '#475569' : 'white'}; font-size:11px; font-weight:800; padding:2px 8px; border-radius:6px;">
+                          ${day} ${badgeLabel ? `(${badgeLabel})` : ''}
+                        </span>
+                        <span style="font-size:11.5px; font-weight:900; color:${isOff ? '#94a3b8' : '#00897b'};">
+                          ${sch.custom_fee || doctorData.consultation_fee} ج
+                        </span>
+                      </div>
+                      <div style="font-size:12px; font-weight:800; color:${isOff ? '#64748b' : '#0b1e33'}; margin-bottom:3px;">
+                        ${isOff ? '⛔ إجازة العيادة' : '✅ متاح للكشف'}
+                      </div>
+                      <div style="font-size:11px; color:#64748b;">
+                        ⏰ ${sch.shift_hours || 'من 05:00 م إلى 10:00 م'}
+                      </div>
+                      ${sch.notes ? `<div style="font-size:10.5px; color:#475569; margin-top:4px; background:#f1f5f9; padding:2px 6px; border-radius:4px;">📝 ${sch.notes}</div>` : ''}
+                    </div>
+                    <button type="button" class="quick-test-btn" onclick="openEditDoctorDayScheduleModal('${day}', '${(sch.shift_hours || '').replace(/'/g, "\\'")}', '${(sch.notes || '').replace(/'/g, "\\'")}', ${sch.custom_fee || doctorData.consultation_fee})" style="width:100%; background:${isOff ? '#f1f5f9' : '#e0f2fe'}; color:${isOff ? '#334155' : '#0284c7'}; border:none; padding:6px; font-size:11px; font-weight:800; border-radius:8px; cursor:pointer;">
+                      ✏️ تعديل موعد ${day}
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
       } catch (err) {
-        container.innerHTML = '<div style="color:red; text-align:center; padding:20px;">تعذر تحميل جدول مواعيد العيادة: ' + err.message + '</div>';
+        console.error('Error loading doctor clinic tab:', err);
+        container.innerHTML = '<div style="color:#ef4444; padding:20px; text-align:center;">تعذر تحميل جدول مواعيد العيادة: ' + err.message + '</div>';
+      }
+    }
+
+    async function toggleDoctorQuickDayAvailability(dayName, makeAvailable) {
+      const shiftHours = makeAvailable ? 'من 05:00 م إلى 10:00 م' : 'إجازة أسبوعية';
+      const notes = makeAvailable ? 'كشف واستشارات ومتابعة' : 'إجازة العيادة';
+      
+      const cacheKey = 'my_doc_sch_' + (currentUser?.id || 'me');
+      try {
+        let schedules = [];
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) schedules = JSON.parse(cached);
+        const idx = schedules.findIndex(s => s.day_of_week === dayName);
+        if (idx >= 0) {
+          schedules[idx].shift_hours = shiftHours;
+          schedules[idx].notes = notes;
+        } else {
+          schedules.push({ day_of_week: dayName, shift_hours: shiftHours, notes: notes });
+        }
+        localStorage.setItem(cacheKey, JSON.stringify(schedules));
+      } catch(e){}
+
+      try {
+        await fetch('/api/doctors/my-clinic-schedule', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            day_of_week: dayName,
+            shift_hours: shiftHours,
+            is_available: makeAvailable,
+            notes: notes
+          })
+        });
+      } catch(err) {
+        console.warn('Sync toggle error:', err);
+      }
+
+      loadDoctorClinicsTab();
+    }
+
+    function openEditDoctorClinicDetailsModal(name, spec, gov, address, phone, fee) {
+      const modal = document.getElementById('editDoctorClinicDetailsModal');
+      if (!modal) return;
+      document.getElementById('editDocClinicName').value = name || '';
+      document.getElementById('editDocClinicSpec').value = spec || 'general';
+      document.getElementById('editDocClinicGov').value = gov || 'القاهرة';
+      document.getElementById('editDocClinicAddress').value = address || '';
+      document.getElementById('editDocClinicPhone').value = phone || '';
+      document.getElementById('editDocClinicFee').value = fee || 150;
+      modal.style.display = 'flex';
+    }
+
+    function closeEditDoctorClinicDetailsModal() {
+      const modal = document.getElementById('editDoctorClinicDetailsModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function handleEditDoctorClinicDetailsSubmit(e) {
+      e.preventDefault();
+      const clinic_name = document.getElementById('editDocClinicName').value.trim();
+      const specialty = document.getElementById('editDocClinicSpec').value;
+      const governorate = document.getElementById('editDocClinicGov').value;
+      const clinic_address = document.getElementById('editDocClinicAddress').value.trim();
+      const phone = document.getElementById('editDocClinicPhone').value.trim();
+      const consultation_fee = parseInt(document.getElementById('editDocClinicFee').value) || 150;
+
+      const btn = document.getElementById('btnSaveClinicDetails');
+      btn.disabled = true;
+      btn.innerHTML = 'جاري الحفظ... ⏳';
+
+      try {
+        if (currentUser) {
+          currentUser.clinic_name = clinic_name;
+          currentUser.specialty = specialty;
+          currentUser.governorate = governorate;
+          currentUser.clinic_address = clinic_address;
+          currentUser.phone = phone;
+          currentUser.consultation_fee = consultation_fee;
+          localStorage.setItem('user', JSON.stringify(currentUser));
+        }
+
+        const res = await fetch('/api/doctors/my-clinic-schedule', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            clinic_name,
+            specialty,
+            governorate,
+            clinic_address,
+            phone,
+            consultation_fee
+          })
+        });
+        const data = await res.json();
+        alert('🎉 ' + (data.message || 'تم تحديث بيانات عيادتك بنجاح!'));
+        closeEditDoctorClinicDetailsModal();
+        loadDoctorClinicsTab();
+      } catch (err) {
+        alert('تم تحديث البيانات محلياً بنجاح!');
+        closeEditDoctorClinicDetailsModal();
+        loadDoctorClinicsTab();
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 حفظ بيانات العيادة';
+      }
+    }
+
+    function openEditDoctorDayScheduleModal(dayName, hours, notes, fee) {
+      const modal = document.getElementById('editDoctorDayScheduleModal');
+      if (!modal) return;
+      document.getElementById('schModalDayName').textContent = dayName;
+      document.getElementById('schModalDayInput').value = dayName;
+      const isOff = (hours || '').includes('إجازة');
+      document.getElementById('schModalStatusInput').value = isOff ? 'off' : 'available';
+      document.getElementById('schModalHoursInput').value = isOff ? 'من 05:00 م إلى 10:00 م' : (hours || 'من 05:00 م إلى 10:00 م');
+      document.getElementById('schModalHoursContainer').style.display = isOff ? 'none' : 'block';
+      document.getElementById('schModalFeeInput').value = fee || 150;
+      document.getElementById('schModalNotesInput').value = notes || '';
+      modal.style.display = 'flex';
+    }
+
+    function closeEditDoctorDayScheduleModal() {
+      const modal = document.getElementById('editDoctorDayScheduleModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function handleSchStatusChange(status) {
+      const container = document.getElementById('schModalHoursContainer');
+      if (container) {
+        container.style.display = (status === 'off') ? 'none' : 'block';
+      }
+    }
+
+    async function handleEditDoctorDayScheduleSubmit(e) {
+      e.preventDefault();
+      const dayName = document.getElementById('schModalDayInput').value;
+      const status = document.getElementById('schModalStatusInput').value;
+      const isAvailable = status === 'available';
+      const shift_hours = isAvailable ? (document.getElementById('schModalHoursInput').value.trim() || 'من 05:00 م إلى 10:00 م') : 'إجازة أسبوعية';
+      const notes = document.getElementById('schModalNotesInput').value.trim() || (isAvailable ? 'كشف واستشارات ومتابعة' : 'إجازة العيادة');
+      const custom_fee = parseInt(document.getElementById('schModalFeeInput').value) || 150;
+
+      const cacheKey = 'my_doc_sch_' + (currentUser?.id || 'me');
+      try {
+        let schedules = [];
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) schedules = JSON.parse(cached);
+        const idx = schedules.findIndex(s => s.day_of_week === dayName);
+        if (idx >= 0) {
+          schedules[idx].shift_hours = shift_hours;
+          schedules[idx].notes = notes;
+          schedules[idx].custom_fee = custom_fee;
+        } else {
+          schedules.push({ day_of_week: dayName, shift_hours, notes, custom_fee });
+        }
+        localStorage.setItem(cacheKey, JSON.stringify(schedules));
+      } catch(e){}
+
+      const btn = document.getElementById('btnSaveDaySchedule');
+      btn.disabled = true;
+      btn.innerHTML = 'جاري الحفظ... ⏳';
+
+      try {
+        await fetch('/api/doctors/my-clinic-schedule', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            day_of_week: dayName,
+            shift_hours: shift_hours,
+            is_available: isAvailable,
+            notes: notes,
+            custom_fee: custom_fee
+          })
+        });
+      } catch(err) {
+        console.warn('Save day schedule error:', err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 حفظ موعد اليوم';
+        closeEditDoctorDayScheduleModal();
+        loadDoctorClinicsTab();
       }
     }
 
@@ -12527,22 +12768,39 @@
     </div>
   </div>
 
-  <!-- مودال تسجيل وإضافة عيادة جديدة خاصة بالطبيب -->
-  <div class="modal-overlay" id="addDoctorClinicModal" style="display:none;" onclick="if(event.target===this)closeAddDoctorClinicModal()">
+  <!-- مودال تعديل وتسجيل بيانات عيادة الطبيب وسعر الكشف -->
+  <div class="modal-overlay" id="editDoctorClinicDetailsModal" style="display:none;" onclick="if(event.target===this)closeEditDoctorClinicDetailsModal()">
     <div class="modal-card" style="max-width:480px; width:92%; background:white; border-radius:20px; padding:24px; box-shadow:0 20px 50px rgba(0,0,0,0.25);" onclick="event.stopPropagation()">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-        <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0;">➕ تسجيل وإضافة بيانات عيادتي</h3>
-        <button type="button" onclick="closeAddDoctorClinicModal()" style="background:none; border:none; font-size:18px; cursor:pointer; color:#64748b;">✕</button>
+        <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0;">✏️ بيانات عيادتي الخاصة وسعر الكشف</h3>
+        <button type="button" onclick="closeEditDoctorClinicDetailsModal()" style="background:none; border:none; font-size:18px; cursor:pointer; color:#64748b;">✕</button>
       </div>
-      <form onsubmit="handleSubmitAddDoctorClinic(event)" style="display:flex; flex-direction:column; gap:12px;">
+      <form onsubmit="handleEditDoctorClinicDetailsSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
         <div>
           <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">اسم العيادة</label>
-          <input type="text" id="docClinicNameInput" placeholder="مثال: عيادة د. محمد للقلب والأوعية" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          <input type="text" id="editDocClinicName" placeholder="مثال: عيادة د. محمد وائل التخصصية" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <div>
+            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">التخصص الطبي</label>
+            <select id="editDocClinicSpec" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+              <option value="general">طب عام وباطنة</option>
+              <option value="children">أطفال وحديثي ولادة</option>
+              <option value="women">نساء وتوليد</option>
+              <option value="eyes">طب وجراحة عيون</option>
+              <option value="ent">أنف وأذن وحنجرة</option>
+              <option value="dental">طب وجراحة أسنان</option>
+              <option value="derma">جلدية وتجميل</option>
+              <option value="neuro">مخ وأعصاب</option>
+              <option value="heart">قلب وأوعية دموية</option>
+              <option value="ortho">عظام ومفاصل</option>
+              <option value="psych">طب نفسي</option>
+              <option value="therapy">علاج طبيعي وتأهيل</option>
+            </select>
+          </div>
+          <div>
             <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">المحافظة</label>
-            <select id="docClinicGovInput" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+            <select id="editDocClinicGov" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
               <option value="القاهرة">القاهرة</option>
               <option value="الجيزة">الجيزة</option>
               <option value="الإسكندرية">الإسكندرية</option>
@@ -12550,19 +12808,78 @@
               <option value="الغربية">الغربية</option>
               <option value="الشرقية">الشرقية</option>
               <option value="القليوبية">القليوبية</option>
+              <option value="البحيرة">البحيرة</option>
+              <option value="المنوفية">المنوفية</option>
+              <option value="كفر الشيخ">كفر الشيخ</option>
+              <option value="الفيوم">الفيوم</option>
+              <option value="بني سويف">بني سويف</option>
+              <option value="المنيا">المنيا</option>
+              <option value="أسيوط">أسيوط</option>
+              <option value="سوهاج">سوهاج</option>
+              <option value="قنا">قنا</option>
+              <option value="الأقصر">الأقصر</option>
+              <option value="أسوان">أسوان</option>
+              <option value="بورسعيد">بورسعيد</option>
+              <option value="الإسماعيلية">الإسماعيلية</option>
+              <option value="السويس">السويس</option>
             </select>
-          </div>
-          <div>
-            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">سعر الكشف (ج)</label>
-            <input type="number" id="docClinicFeeInput" placeholder="150" value="150" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
           </div>
         </div>
         <div>
-          <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">العنوان بالتفصيل</label>
-          <input type="text" id="docClinicAddressInput" placeholder="الشارع، البرج الطبي، الدور" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">العنوان ومقر العيادة بالتفصيل</label>
+          <input type="text" id="editDocClinicAddress" placeholder="الشارع، رقم العمارة، البرج الطبي، الدور" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
         </div>
-        <button type="submit" id="btnSubmitAddClinic" style="background:#0284c7; color:white; border:none; padding:11px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; margin-top:4px;">
-          💾 حفظ وتفعيل العيادة
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">هاتف الحجز والتواصل</label>
+            <input type="tel" id="editDocClinicPhone" placeholder="01012345678" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">سعر الكشف الرسمي (ج)</label>
+            <input type="number" id="editDocClinicFee" placeholder="150" value="150" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          </div>
+        </div>
+        <button type="submit" id="btnSaveClinicDetails" style="background:#0284c7; color:white; border:none; padding:11px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; margin-top:4px;">
+          💾 حفظ بيانات العيادة
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- مودال تعديل موعد وساعات كشف يوم معين للطبيب -->
+  <div class="modal-overlay" id="editDoctorDayScheduleModal" style="display:none;" onclick="if(event.target===this)closeEditDoctorDayScheduleModal()">
+    <div class="modal-card" style="max-width:440px; width:92%; background:white; border-radius:20px; padding:24px; box-shadow:0 20px 50px rgba(0,0,0,0.25);" onclick="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0;">
+          ✏️ تعديل موعد كشف يوم <span id="schModalDayName" style="color:#0284c7;"></span>
+        </h3>
+        <button type="button" onclick="closeEditDoctorDayScheduleModal()" style="background:none; border:none; font-size:18px; cursor:pointer; color:#64748b;">✕</button>
+      </div>
+      <form onsubmit="handleEditDoctorDayScheduleSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
+        <input type="hidden" id="schModalDayInput">
+        <div>
+          <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">حالة التواجد في هذا اليوم</label>
+          <select id="schModalStatusInput" onchange="handleSchStatusChange(this.value)" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+            <option value="available">🟢 متاح للكشف واستقبال المرضى</option>
+            <option value="off">⛔ إجازة العيادة (غير متاح)</option>
+          </select>
+        </div>
+        <div id="schModalHoursContainer">
+          <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">ساعات العمل والكشف</label>
+          <input type="text" id="schModalHoursInput" placeholder="مثال: من 05:00 م إلى 10:00 م" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">سعر الكشف لهذا اليوم (ج)</label>
+            <input type="number" id="schModalFeeInput" placeholder="150" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">ملاحظات الكشف</label>
+            <input type="text" id="schModalNotesInput" placeholder="مثال: كشف واستشارات ومتابعة" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:13px; font-family:inherit; outline:none;">
+          </div>
+        </div>
+        <button type="submit" id="btnSaveDaySchedule" style="background:#0284c7; color:white; border:none; padding:11px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; margin-top:4px;">
+          💾 حفظ موعد اليوم
         </button>
       </form>
     </div>

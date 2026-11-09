@@ -1090,13 +1090,45 @@ app.post('/api/auth/quick-demo-login', async (req, res) => {
 // تسجيل الدخول والتوثيق بواسطة Google عبر Firebase Auth
 app.post('/api/auth/google-login', async (req, res) => {
   try {
-    const { email, name, photoUrl, uid, role } = req.body;
+    const { email, name, photoUrl, uid, role, checkOnly } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'البريد الإلكتروني مطلوب للمتابعة بواسطة Google' });
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
     let user = await User.findOne({ where: { email: cleanEmail } });
+
+    // فحص ما إذا كان الحساب موجوداً ومكتمل البيانات للطبيب
+    if (checkOnly) {
+      if (!user) {
+        return res.json({ isExisting: false, isExistingDoctor: false });
+      }
+      if (role === 'DOCTOR' || user.role === 'DOCTOR') {
+        const doctor = await Doctor.findOne({ where: { user_id: user.id } });
+        if (!doctor || !doctor.phone || doctor.phone === '01012345678') {
+          return res.json({ isExisting: true, isExistingDoctor: false, user });
+        }
+      }
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET || 'fallback_secret',
+        { expiresIn: '7d' }
+      );
+      return res.json({
+        isExisting: true,
+        isExistingDoctor: true,
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          role: user.role,
+          governorate: user.governorate || 'القاهرة',
+          photoUrl: photoUrl || ''
+        }
+      });
+    }
 
     if (!user) {
       const assignedRole = (role && ['PATIENT', 'DOCTOR', 'PHARMACY', 'THERAPY'].includes(role.toUpperCase())) 
@@ -1110,6 +1142,27 @@ app.post('/api/auth/google-login', async (req, res) => {
         role: assignedRole,
         governorate: 'القاهرة'
       });
+    }
+
+    // إذا كان المستخدم طبيباً، نتأكد من وجود سجل الطبيب وعيادته الخاصة
+    if (user.role === 'DOCTOR') {
+      let doc = await Doctor.findOne({ where: { user_id: user.id } });
+      const cleanDocName = (user.name || name || 'طبيب').replace(/^د\.\s*/, '');
+      if (!doc) {
+        doc = await Doctor.create({
+          name: `د. ${cleanDocName}`,
+          specialty: 'general',
+          bio: 'استشاري معتمد لدى منصة حياه',
+          phone: user.phone || '',
+          consultation_fee: 150,
+          clinic_name: `عيادة د. ${cleanDocName}`,
+          clinic_type: 'PRIVATE',
+          governorate: user.governorate || 'القاهرة',
+          clinic_address: 'شارع التحرير، وسط البلد',
+          verification_status: 'VERIFIED',
+          user_id: user.id
+        });
+      }
     }
 
     const token = jwt.sign(
@@ -1254,10 +1307,10 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
   res.json(user);
 });
 
-// تحديث الملف الشخصي (الاسم، البريد، الهاتف، المحافظة)
+// تحديث الملف الشخصي (الاسم، البريد، الهاتف، المحافظة، وكلمة المرور)
 app.put('/api/auth/profile', authenticate, async (req, res) => {
   try {
-    const { name, email, phone, governorate } = req.body;
+    const { name, email, phone, governorate, password } = req.body;
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
@@ -1272,16 +1325,23 @@ app.put('/api/auth/profile', authenticate, async (req, res) => {
     if (name) user.name = name.trim();
     if (phone !== undefined) user.phone = phone.trim();
     if (governorate) user.governorate = governorate.trim();
+    if (password && String(password).trim().length >= 6) {
+      user.password = await bcrypt.hash(String(password).trim(), 10);
+    }
 
     await user.save();
 
-    // إذا كان المستخدم طبيباً يتم مزامنة البيانات مع بروفايل الطبيب أيضاً
+    // إذا كان المستخدم طبيباً يتم مزامنة البيانات مع بروفايل الطبيب وعيادته أيضاً
     if (user.role === 'DOCTOR') {
       const doc = await Doctor.findOne({ where: { user_id: user.id } });
       if (doc) {
         if (name) doc.name = user.name;
         if (phone !== undefined) doc.phone = user.phone;
         if (governorate) doc.governorate = user.governorate;
+        if (req.body.clinic_name) doc.clinic_name = req.body.clinic_name.trim();
+        if (req.body.clinic_address) doc.clinic_address = req.body.clinic_address.trim();
+        if (req.body.consultation_fee) doc.consultation_fee = parseInt(req.body.consultation_fee) || doc.consultation_fee;
+        if (req.body.specialty) doc.specialty = req.body.specialty.trim();
         await doc.save();
       }
     }
@@ -1309,29 +1369,211 @@ app.put('/api/auth/profile', authenticate, async (req, res) => {
   }
 });
 
-// تغيير كلمة مرور الحساب
+// تغيير كلمة مرور الحساب (يدعم مستخدمي Google وحسابات البريد العادية)
 app.put('/api/auth/change-password', authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'يرجى كتابة كلمة المرور الحالية وكلمة المرور الجديدة' });
-    }
-    if (newPassword.length < 6) {
+    if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' });
     }
 
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'كلمة المرور الحالية غير صحيحة' });
+    const isGoogleAccount = user.password && user.password.includes('GOOGLE_AUTH');
+
+    if (currentPassword && currentPassword.trim() !== '') {
+      if (!isGoogleAccount) {
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+          return res.status(400).json({ error: 'كلمة المرور الحالية غير صحيحة' });
+        }
+      }
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
 
-    res.json({ message: 'تم تغيير كلمة المرور بنجاح 🔒' });
+    res.json({ message: 'تم حفظ وتعيين كلمة المرور بنجاح 🔒' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- إدارة عيادة الطبيب الخاصة ومواعيد كشفه وساعات عمله (Doctor's Clinic & Schedule) ---
+app.get('/api/doctors/my-clinic-schedule', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'DOCTOR' && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'صلاحية الوصول مقتصرة على الأطباء' });
+    }
+
+    let doctor = await Doctor.findOne({ where: { user_id: req.user.id } });
+    const user = await User.findByPk(req.user.id);
+    const cleanName = (user?.name || req.user.name || 'طبيب').replace(/^د\.\s*/, '');
+
+    if (!doctor) {
+      doctor = await Doctor.create({
+        name: `د. ${cleanName}`,
+        specialty: 'general',
+        bio: 'استشاري معتمد لدى منصة حياه',
+        phone: user?.phone || '',
+        consultation_fee: 150,
+        clinic_name: `عيادة د. ${cleanName}`,
+        clinic_type: 'PRIVATE',
+        governorate: user?.governorate || 'القاهرة',
+        clinic_address: 'شارع التحرير، وسط البلد',
+        verification_status: 'VERIFIED',
+        user_id: req.user.id
+      });
+    }
+
+    let clinic = await Clinic.findOne({ where: { user_id: req.user.id } });
+    if (!clinic) {
+      clinic = await Clinic.create({
+        name: doctor.clinic_name || `عيادة د. ${cleanName}`,
+        specialty: doctor.specialty || 'عيادة تخصصية',
+        governorate: doctor.governorate || user?.governorate || 'القاهرة',
+        address: doctor.clinic_address || 'وسط البلد',
+        phone: doctor.phone || user?.phone || '',
+        user_id: req.user.id
+      });
+    }
+
+    let schedules = await ClinicSchedule.findAll({
+      where: { clinic_id: clinic.id, doctor_id: doctor.id }
+    });
+
+    const daysOrder = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+    if (!schedules || schedules.length === 0) {
+      schedules = [];
+      for (const day of daysOrder) {
+        const isOff = day === 'الجمعة';
+        const shift_hours = isOff ? 'إجازة أسبوعية' : 'من 05:00 م إلى 10:00 م';
+        const sch = await ClinicSchedule.create({
+          clinic_id: clinic.id,
+          doctor_id: doctor.id,
+          day_of_week: day,
+          shift_hours: shift_hours,
+          custom_fee: doctor.consultation_fee || 150,
+          notes: isOff ? 'إجازة العيادة' : 'كشف واستشارات ومتابعة'
+        });
+        schedules.push(sch);
+      }
+    }
+
+    res.json({
+      doctor: {
+        id: doctor.id,
+        name: doctor.name,
+        specialty: doctor.specialty,
+        consultation_fee: doctor.consultation_fee,
+        bio: doctor.bio,
+        phone: doctor.phone || user?.phone || '',
+        rating: doctor.rating || 5.0
+      },
+      clinic: {
+        id: clinic.id,
+        name: clinic.name,
+        specialty: clinic.specialty,
+        governorate: clinic.governorate,
+        address: clinic.address,
+        phone: clinic.phone
+      },
+      schedules: schedules
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/doctors/my-clinic-schedule', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'DOCTOR' && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'صلاحية الوصول مقتصرة على الأطباء' });
+    }
+
+    let doctor = await Doctor.findOne({ where: { user_id: req.user.id } });
+    const user = await User.findByPk(req.user.id);
+    const cleanName = (user?.name || req.user.name || 'طبيب').replace(/^د\.\s*/, '');
+
+    if (!doctor) {
+      doctor = await Doctor.create({
+        name: `د. ${cleanName}`,
+        specialty: req.body.specialty || 'general',
+        consultation_fee: req.body.consultation_fee || 150,
+        clinic_name: req.body.clinic_name || `عيادة د. ${cleanName}`,
+        clinic_address: req.body.clinic_address || 'شارع التحرير، وسط البلد',
+        governorate: req.body.governorate || 'القاهرة',
+        phone: req.body.phone || user?.phone || '',
+        user_id: req.user.id
+      });
+    }
+
+    if (req.body.clinic_name) doctor.clinic_name = req.body.clinic_name.trim();
+    if (req.body.specialty) doctor.specialty = req.body.specialty.trim();
+    if (req.body.consultation_fee) doctor.consultation_fee = parseInt(req.body.consultation_fee) || doctor.consultation_fee;
+    if (req.body.phone) {
+      doctor.phone = req.body.phone.trim();
+      if (user) { user.phone = doctor.phone; await user.save(); }
+    }
+    if (req.body.governorate) {
+      doctor.governorate = req.body.governorate.trim();
+      if (user) { user.governorate = doctor.governorate; await user.save(); }
+    }
+    if (req.body.clinic_address) doctor.clinic_address = req.body.clinic_address.trim();
+
+    await doctor.save();
+
+    let clinic = await Clinic.findOne({ where: { user_id: req.user.id } });
+    if (!clinic) {
+      clinic = await Clinic.create({
+        name: doctor.clinic_name,
+        specialty: doctor.specialty,
+        governorate: doctor.governorate,
+        address: doctor.clinic_address,
+        phone: doctor.phone,
+        user_id: req.user.id
+      });
+    } else {
+      clinic.name = doctor.clinic_name;
+      clinic.specialty = doctor.specialty;
+      clinic.governorate = doctor.governorate;
+      clinic.address = doctor.clinic_address;
+      clinic.phone = doctor.phone;
+      await clinic.save();
+    }
+
+    if (req.body.day_of_week) {
+      const day = req.body.day_of_week.trim();
+      const shift_hours = req.body.shift_hours || (req.body.is_available === false ? 'إجازة أسبوعية' : 'من 05:00 م إلى 10:00 م');
+      const custom_fee = req.body.custom_fee ? parseInt(req.body.custom_fee) : doctor.consultation_fee;
+      const notes = req.body.notes || (req.body.is_available === false ? 'إجازة العيادة' : 'كشف واستشارات ومتابعة');
+
+      let sch = await ClinicSchedule.findOne({
+        where: { clinic_id: clinic.id, doctor_id: doctor.id, day_of_week: day }
+      });
+      if (sch) {
+        sch.shift_hours = shift_hours;
+        sch.custom_fee = custom_fee;
+        sch.notes = notes;
+        await sch.save();
+      } else {
+        await ClinicSchedule.create({
+          clinic_id: clinic.id,
+          doctor_id: doctor.id,
+          day_of_week: day,
+          shift_hours: shift_hours,
+          custom_fee: custom_fee,
+          notes: notes
+        });
+      }
+    }
+
+    res.json({
+      message: '✅ تم حفظ بيانات عيادتك ومواعيد كشفك بنجاح!',
+      doctor,
+      clinic
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

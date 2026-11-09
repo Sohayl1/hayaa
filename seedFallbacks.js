@@ -27,7 +27,7 @@ const SEED_FALLBACK_CLINICS = [
       },
       {
         "id": "c2",
-        "user_id": "9df4dcc8-5683-4fba-aa0b-85d16c5b4d7d",
+        "user_id": "doc_pediatric_youssef_771",
         "name": "عيادة براعم المستقبل لطب الأطفال",
         "specialty": "طب الأطفال وحديثي الولادة",
         "governorate": "الجيزة",
