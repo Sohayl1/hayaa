@@ -700,13 +700,7 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
       return res.status(400).json({ error: emailCheck.error });
     }
 
-    // 2. التحقق من عدم التكرار
-    const existing = await User.findOne({ where: { email: email.toLowerCase() } });
-    if (existing) {
-      return res.status(400).json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً' });
-    }
-
-    // 3. التحقق من رفع المستندات الأربعة المطلوبة
+    // 2. التحقق من المستندات المرفوعة
     const syndicateFrontFile = req.files?.['syndicateFront']?.[0];
     const syndicateBackFile = req.files?.['syndicateBack']?.[0];
     const graduationCertFile = req.files?.['graduationCert']?.[0];
@@ -726,29 +720,34 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
       });
     }
 
-    // 4. الفحص والتحقق الذكي بالذكاء الاصطناعي (AI Document Verification)
-    const aiVerification = await verifyDoctorDocumentsWithAI(req.files);
-    if (!aiVerification.valid) {
-      // حذف الملفات المرفوعة غير الصالحة لتوفير المساحة والحماية
-      [syndicateFrontFile, syndicateBackFile, graduationCertFile, facePhotoFile].forEach(f => {
-        if (f?.path && fs.existsSync(f.path)) {
-          try { fs.unlinkSync(f.path); } catch (e) {}
-        }
-      });
-
-      return res.status(400).json({
-        error: aiVerification.error || 'فشل التحقق الذكي من صحة المستندات المرفوعة. يرجى التأكد من رفع وثائق حقيقية وصحيحة.'
-      });
+    // 3. الفحص الذكي بالذكاء الاصطناعي (مع تمرير الطلب للمراجعة البشرية للأدمن)
+    let aiVerification = { valid: true };
+    try {
+      aiVerification = await verifyDoctorDocumentsWithAI(req.files);
+    } catch (e) {
+      aiVerification = { valid: true, note: e.message };
     }
 
-    // 5. إنشاء المستخدم بدور طبيب
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({
-      name: name.startsWith('د.') ? name : `د. ${name}`,
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      role: 'DOCTOR',
-    });
+    // 4. إنشاء المستخدم أو ترقية الحساب الحالي للطبيب (يدعم المسجلين عبر Google دون تعليق)
+    const cleanDocName = name.startsWith('د.') ? name : `د. ${name}`;
+    const hashedPassword = await bcrypt.hash(password || 'doctor123', 10);
+    let user = await User.findOne({ where: { email: email.toLowerCase() } });
+    if (user) {
+      user.name = cleanDocName;
+      user.role = 'DOCTOR';
+      if (password && password.trim().length >= 6) user.password = hashedPassword;
+      if (phone) user.phone = phone.trim();
+      await user.save();
+    } else {
+      user = await User.create({
+        name: cleanDocName,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        phone: phone || '',
+        role: 'DOCTOR',
+        governorate: req.body.governorate?.trim() || 'القاهرة'
+      });
+    }
 
     const consultationFee = parseInt(req.body.consultationFee) || 150;
     const clinicName = req.body.clinicName?.trim() || 'عيادة خاصة';
@@ -763,12 +762,13 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
     const subscriptionFee = isFreePromo ? 0 : 100;
     const subscriptionStatus = isFreePromo ? 'FREE_PROMO' : 'PENDING_PAYMENT';
 
-    // 6. إنشاء سجل الطبيب في دليل حياه مع تحديد الموقع و GPS ورسوم الاشتراك
-    const doctor = await Doctor.create({
+    // 6. إنشاء أو تحديث سجل الطبيب في دليل حياه مع تحديد الموقع و GPS ورسوم الاشتراك
+    let doctor = await Doctor.findOne({ where: { user_id: user.id } });
+    const docData = {
       name: user.name,
       specialty: specialty || 'general',
-      bio: bio || 'استشاري معتمد لدى منصة حياه',
-      phone: phone || '',
+      bio: bio || (doctor?.bio || 'استشاري معتمد لدى منصة حياه'),
+      phone: phone || (doctor?.phone || ''),
       consultation_fee: consultationFee,
       clinic_name: clinicName,
       clinic_type: clinicType,
@@ -776,20 +776,27 @@ app.post('/api/auth/register-doctor', uploadDoctorDocs, async (req, res) => {
       clinic_address: clinicAddress,
       latitude: latitude,
       longitude: longitude,
-      syndicate_card_front: syndicateFrontUrl,
-      syndicate_card_back: syndicateBackUrl,
-      graduation_cert: graduationCertUrl,
-      profile_photo: facePhotoUrl,
-      avatar_url: avatarChoice || facePhotoUrl,
-      clinic_photo: clinicPhotoUrl,
-      rating: 0.0,
-      rating_count: 0,
+      syndicate_card_front: syndicateFrontUrl || doctor?.syndicate_card_front || '',
+      syndicate_card_back: syndicateBackUrl || doctor?.syndicate_card_back || '',
+      graduation_cert: graduationCertUrl || doctor?.graduation_cert || '',
+      profile_photo: facePhotoUrl || doctor?.profile_photo || '',
+      avatar_url: avatarChoice || facePhotoUrl || doctor?.avatar_url || '',
+      clinic_photo: clinicPhotoUrl || doctor?.clinic_photo || '',
+      rating: doctor?.rating || 0.0,
+      rating_count: doctor?.rating_count || 0,
       verification_status: 'PENDING', // قيد المراجعة والموافقة من قبل مالك المنصة شخصياً
       subscription_fee: subscriptionFee,
       subscription_status: subscriptionStatus,
-      promo_code: isFreePromo ? promoCode : null,
+      promo_code: isFreePromo ? promoCode : (doctor?.promo_code || null),
       user_id: user.id
-    });
+    };
+
+    if (doctor) {
+      Object.assign(doctor, docData);
+      await doctor.save();
+    } else {
+      doctor = await Doctor.create(docData);
+    }
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
@@ -1137,8 +1144,15 @@ app.post('/api/auth/google-login', async (req, res) => {
         return res.json({ isExisting: false, isExistingDoctor: false });
       }
       if (role === 'DOCTOR' || user.role === 'DOCTOR') {
-        const doctor = await Doctor.findOne({ where: { user_id: user.id } });
-        if (!doctor || !doctor.phone || doctor.phone === '01012345678') {
+        let doctor = await Doctor.findOne({ where: { user_id: user.id } });
+        if (!doctor) {
+          doctor = await Doctor.findOne({ where: { name: user.name } });
+          if (doctor && !doctor.user_id) {
+            doctor.user_id = user.id;
+            await doctor.save();
+          }
+        }
+        if (!doctor) {
           return res.json({ isExisting: true, isExistingDoctor: false, user });
         }
       }
