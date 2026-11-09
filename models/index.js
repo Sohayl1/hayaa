@@ -37,24 +37,319 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
     });
   } else {
     isMockDb = true;
-    console.warn('⚠️ [Sequelize] sqlite3 driver is not available in this environment (e.g. Vercel Serverless). Initializing safe resilient DB layer.');
+    console.warn('⚠️ [Sequelize] sqlite3 driver is not available in this environment (e.g. Vercel Serverless). Initializing safe resilient persistent DB layer.');
+
+    const os = require('os');
+    let seedFallbacks = {};
+    try {
+      seedFallbacks = require('../seedFallbacks');
+    } catch(e) {
+      try { seedFallbacks = require('./seedFallbacks'); } catch(e2) {}
+    }
+
+    const {
+      SEED_FALLBACK_DOCTORS = [],
+      SEED_FALLBACK_PHARMACIES = [],
+      SEED_FALLBACK_THERAPY = [],
+      SEED_FALLBACK_CLINICS = []
+    } = seedFallbacks;
+
+    const MODEL_SEEDS = {
+      Doctor: SEED_FALLBACK_DOCTORS,
+      Pharmacy: SEED_FALLBACK_PHARMACIES,
+      TherapyCenter: SEED_FALLBACK_THERAPY,
+      Clinic: SEED_FALLBACK_CLINICS,
+      User: [
+        {
+          id: 'admin_1',
+          name: 'المدير العام والمالك (Super Admin)',
+          email: 'admin@hayaa.com',
+          role: 'ADMIN',
+          governorate: 'القاهرة',
+          phone: '01000000000',
+          created_at: new Date('2026-01-01').toISOString()
+        },
+        {
+          id: 'doc_wael_1',
+          name: 'د. Mohamed Wael',
+          email: 'waylm0191@gmail.com',
+          role: 'DOCTOR',
+          governorate: 'القاهرة',
+          phone: '01012345678',
+          created_at: new Date('2026-01-02').toISOString()
+        },
+        {
+          id: '9df4dcc8-5683-4fba-aa0b-85d16c5b4d7d',
+          name: 'د. سارة المنصور',
+          email: 'doctor@example.com',
+          role: 'DOCTOR',
+          governorate: 'القاهرة',
+          phone: '01012345678',
+          created_at: new Date('2026-01-02').toISOString()
+        },
+        {
+          id: 'pat_user_1',
+          name: 'أحمد محمود (مريض تجريبي)',
+          email: 'patient@example.com',
+          role: 'PATIENT',
+          governorate: 'القاهرة',
+          phone: '01022223333',
+          created_at: new Date('2026-01-03').toISOString()
+        },
+        {
+          id: 'pharm_user_1',
+          name: 'صيدلية الشفاء المركزية',
+          email: 'pharmacy@example.com',
+          role: 'PHARMACY',
+          governorate: 'القاهرة',
+          phone: '01033334444',
+          created_at: new Date('2026-01-04').toISOString()
+        },
+        {
+          id: 'therapy_user_1',
+          name: 'مركز ريهاب بلس للتأهيل والعلاج الطبيعي',
+          email: 'therapy@example.com',
+          role: 'THERAPY_CENTER',
+          governorate: 'القاهرة',
+          phone: '01044445555',
+          created_at: new Date('2026-01-05').toISOString()
+        }
+      ],
+      Appointment: [
+        {
+          id: 'appt_demo_1',
+          patient_name: 'أحمد محمود',
+          doctor_id: '138cb805-2b8a-40c5-ab5d-afd6075ed126',
+          appointment_date: '2026-11-10',
+          appointment_time: '18:00',
+          status: 'CONFIRMED',
+          consultation_fee: 150,
+          payment_method: 'CASH',
+          created_at: new Date('2026-11-01').toISOString()
+        }
+      ],
+      Order: [
+        {
+          id: 'order_demo_1',
+          order_number: 'ORD-101',
+          customer_name: 'أحمد محمود',
+          total_amount: 120,
+          status: 'DELIVERED',
+          created_at: new Date('2026-11-02').toISOString()
+        }
+      ],
+      Complaint: []
+    };
+
+    const inMemoryStores = new Map();
+    const getFilePath = (modelName) => path.join(os.tmpdir(), 'haya_store_' + modelName.toLowerCase() + '.json');
+
+    function loadStore(modelName) {
+      if (inMemoryStores.has(modelName)) {
+        return inMemoryStores.get(modelName);
+      }
+      const filePath = getFilePath(modelName);
+      let records = null;
+      try {
+        if (fs.existsSync(filePath)) {
+          const raw = fs.readFileSync(filePath, 'utf8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) records = parsed;
+        }
+      } catch (e) {}
+
+      if (!records) {
+        records = MODEL_SEEDS[modelName] ? JSON.parse(JSON.stringify(MODEL_SEEDS[modelName])) : [];
+        try {
+          fs.writeFileSync(filePath, JSON.stringify(records));
+        } catch (e) {}
+      }
+
+      inMemoryStores.set(modelName, records);
+      return records;
+    }
+
+    function saveStore(modelName, records) {
+      inMemoryStores.set(modelName, records);
+      const filePath = getFilePath(modelName);
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(records));
+      } catch (e) {}
+    }
+
+    function matchWhere(item, where) {
+      if (!where || typeof where !== 'object') return true;
+
+      const symbols = Object.getOwnPropertySymbols(where);
+      for (const sym of symbols) {
+        if (sym.toString().includes('or')) {
+          const orList = where[sym];
+          if (Array.isArray(orList)) {
+            const matchesAny = orList.some(subWhere => matchWhere(item, subWhere));
+            if (!matchesAny) return false;
+          }
+        }
+      }
+
+      for (const key of Object.keys(where)) {
+        const targetVal = where[key];
+        if (targetVal === undefined) continue;
+        const itemVal = item[key];
+
+        if (targetVal && typeof targetVal === 'object') {
+          const subSyms = Object.getOwnPropertySymbols(targetVal);
+          let isLike = false;
+          for (const ss of subSyms) {
+            if (ss.toString().includes('like')) {
+              isLike = true;
+              const pattern = String(targetVal[ss]).replace(/%/g, '').toLowerCase();
+              if (!String(itemVal || '').toLowerCase().includes(pattern)) {
+                return false;
+              }
+            }
+          }
+          if (isLike) continue;
+        }
+
+        if (typeof targetVal === 'string' && typeof itemVal === 'string') {
+          if (key.toLowerCase().includes('email')) {
+            if (itemVal.toLowerCase() !== targetVal.toLowerCase()) return false;
+          } else {
+            if (itemVal !== targetVal) return false;
+          }
+        } else if (targetVal !== itemVal) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function wrapInstance(raw, modelName) {
+      if (!raw) return null;
+      const inst = { ...raw };
+      inst.save = async function() {
+        const records = loadStore(modelName);
+        const idx = records.findIndex(r => String(r.id) === String(this.id));
+        const plain = { ...this };
+        delete plain.save; delete plain.destroy; delete plain.update; delete plain.toJSON;
+        if (idx >= 0) {
+          records[idx] = plain;
+        } else {
+          records.unshift(plain);
+        }
+        saveStore(modelName, records);
+        return inst;
+      };
+      inst.destroy = async function() {
+        let records = loadStore(modelName);
+        records = records.filter(r => String(r.id) !== String(this.id));
+        saveStore(modelName, records);
+        return true;
+      };
+      inst.update = async function(values) {
+        Object.assign(this, values);
+        return this.save();
+      };
+      inst.toJSON = function() {
+        const plain = { ...this };
+        delete plain.save; delete plain.destroy; delete plain.update; delete plain.toJSON;
+        return plain;
+      };
+      return inst;
+    }
 
     function createMockModel(name) {
       const model = function() {};
       model.modelName = name;
-      model.findAll = async () => [];
-      model.findOne = async () => null;
-      model.findByPk = async () => null;
-      model.create = async (data) => ({ id: 'mock_' + Date.now(), ...data });
-      model.count = async () => 0;
-      model.destroy = async () => 1;
-      model.update = async () => [1];
+
+      model.findAll = async (options = {}) => {
+        let records = loadStore(name);
+        if (options.where) {
+          records = records.filter(item => matchWhere(item, options.where));
+        }
+        if (options.order && Array.isArray(options.order)) {
+          const [field, dir] = options.order[0] || ['created_at', 'DESC'];
+          records.sort((a, b) => {
+            const valA = a[field] ?? '';
+            const valB = b[field] ?? '';
+            if (dir && String(dir).toUpperCase() === 'ASC') {
+              return valA > valB ? 1 : -1;
+            }
+            return valA < valB ? 1 : -1;
+          });
+        }
+        if (options.limit && typeof options.limit === 'number') {
+          records = records.slice(0, options.limit);
+        }
+        return records.map(r => wrapInstance(r, name));
+      };
+
+      model.findOne = async (options = {}) => {
+        const results = await model.findAll(options);
+        return results.length ? results[0] : null;
+      };
+
+      model.findByPk = async (id) => {
+        const records = loadStore(name);
+        const found = records.find(r => String(r.id) === String(id));
+        return found ? wrapInstance(found, name) : null;
+      };
+
+      model.create = async (data = {}) => {
+        const records = loadStore(name);
+        const id = data.id || ('id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6));
+        const newRecord = {
+          ...data,
+          id,
+          created_at: data.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        records.unshift(newRecord);
+        saveStore(name, records);
+        return wrapInstance(newRecord, name);
+      };
+
+      model.count = async (options = {}) => {
+        let records = loadStore(name);
+        if (options && options.where) {
+          records = records.filter(item => matchWhere(item, options.where));
+        }
+        return records.length;
+      };
+
+      model.destroy = async (options = {}) => {
+        let records = loadStore(name);
+        const initial = records.length;
+        if (options && options.where) {
+          records = records.filter(item => !matchWhere(item, options.where));
+        } else {
+          records = [];
+        }
+        saveStore(name, records);
+        return initial - records.length;
+      };
+
+      model.update = async (values, options = {}) => {
+        let records = loadStore(name);
+        let updatedCount = 0;
+        records = records.map(r => {
+          if (!options.where || matchWhere(r, options.where)) {
+            updatedCount++;
+            return { ...r, ...values, updated_at: new Date().toISOString() };
+          }
+          return r;
+        });
+        saveStore(name, records);
+        return [updatedCount];
+      };
+
       model.hasOne = () => {};
       model.hasMany = () => {};
       model.belongsTo = () => {};
       model.belongsToMany = () => {};
       model.addScope = () => {};
       model.scope = () => model;
+
       return model;
     }
 
