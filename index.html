@@ -3388,9 +3388,8 @@
           </table>
         </div>
       </div>
-    </div>
 
-      <!-- قسم 6: شكاوي المستخدمين -->
+      <!-- قسم 6: شكاوي المستخدمين (محصور حصرياً داخل لوحة تحكم الأدمن) -->
       <div id="adminSectionComplaints" style="display:none; margin-top:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
           <div>
@@ -3412,6 +3411,7 @@
           <p style="text-align:center; padding:20px; color:#64748b;">جاري تحميل الشكاوي...</p>
         </div>
       </div>
+    </div>
 
     <!-- محتوى دليل الأطباء -->
     <div id="tab-doctors" class="dash-card tab-content">
@@ -6121,6 +6121,17 @@
           return makeJsonRes([]);
         }
 
+        if (url.includes('/api/admin/complaints/count')) {
+          const saved = JSON.parse(localStorage.getItem('haya_local_complaints') || '[]');
+          const newCount = Array.isArray(saved) ? saved.filter(c => c && c.status === 'NEW').length : 0;
+          return makeJsonRes({ count: saved.length || 0, newCount });
+        }
+
+        if (url.includes('/api/admin/complaints')) {
+          const saved = JSON.parse(localStorage.getItem('haya_local_complaints') || '[]');
+          return makeJsonRes(Array.isArray(saved) ? saved : []);
+        }
+
         if (url.includes('/api/stats')) {
           return makeJsonRes({
             doctorsCount: SEED_FALLBACK_DOCTORS.length,
@@ -8055,6 +8066,8 @@
 
     function switchDashTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      const compSection = document.getElementById('adminSectionComplaints');
+      if (compSection && tab !== 'admin') compSection.style.display = 'none';
       document.querySelectorAll('.dash-tab-btn').forEach(btn => btn.classList.remove('active'));
       const activeBtn = document.getElementById('btn-tab-' + tab) || (typeof event !== 'undefined' && event?.currentTarget);
       if (activeBtn && activeBtn.classList) activeBtn.classList.add('active');
@@ -12335,8 +12348,9 @@
           }
         } catch(e){}
 
+        if (!Array.isArray(complaints)) complaints = [];
         if (status) {
-          complaints = complaints.filter(c => c.status === status);
+          complaints = complaints.filter(c => c && c.status === status);
         }
 
         // تحديث البادج وبطاقة الإحصاء
@@ -12399,7 +12413,8 @@
           `;
         }).join('');
       } catch (err) {
-        container.innerHTML = `<p style="color:#dc2626; text-align:center; padding:20px;">خطأ: ${err.message}</p>`;
+        console.warn('loadAdminComplaints error:', err);
+        container.innerHTML = '<p style="text-align:center; padding:30px; color:#94a3b8; font-size:14px;">لا توجد شكاوي حالياً</p>';
       }
     }
 
