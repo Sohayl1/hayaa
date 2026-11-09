@@ -1238,7 +1238,9 @@ app.post('/api/auth/login', async (req, res) => {
       email === 'admin@hayat.com' ||
       email === 'admin@hayaa.com' ||
       email === 'admin@haya.com' ||
-      email === 'admin'
+      email === 'admin' ||
+      email === 'hayathealthcare3@gmail.com' ||
+      email === (process.env.ADMIN_EMAIL || '').toLowerCase()
     );
 
     let user;

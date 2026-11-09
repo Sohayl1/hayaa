@@ -70,6 +70,15 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
           created_at: new Date('2026-01-01').toISOString()
         },
         {
+          id: 'admin_2',
+          name: 'المدير العام والمالك (Super Admin)',
+          email: 'hayathealthcare3@gmail.com',
+          role: 'ADMIN',
+          governorate: 'القاهرة',
+          phone: '01000000000',
+          created_at: new Date('2026-01-01').toISOString()
+        },
+        {
           id: 'doc_wael_1',
           name: 'د. Mohamed Wael',
           email: 'waylm0191@gmail.com',

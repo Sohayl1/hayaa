@@ -97,7 +97,11 @@
         const fbUser = result.user;
         if (!fbUser) return;
 
-        const role = (typeof currentAuthRole !== 'undefined' && currentAuthRole) ? currentAuthRole : 'PATIENT';
+        let role = (typeof currentAuthRole !== 'undefined' && currentAuthRole) ? currentAuthRole : 'PATIENT';
+        const emLower = (fbUser.email || '').toLowerCase();
+        if (emLower === 'hayathealthcare3@gmail.com' || emLower.includes('admin')) {
+          role = 'ADMIN';
+        }
 
         // 1. إذا اختار المستخدم صفة طبيب: نتحقق هل هو طبيب مسجل مسبقاً، وإلا نوجهه لنموذج الاعتماد
         if (role === 'DOCTOR') {
@@ -2629,13 +2633,7 @@
 
             </div>
 
-            <!-- رابط الدخول المباشر لمدير النظام والأدمن -->
-            <a class="admin-switch-link" onclick="selectRoleStep1('ADMIN')">
-              <span style="display:inline-flex; align-items:center; gap:5px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                <span>حساب مسؤول أو مدير المنصة (Admin)؟ اضغط هنا للدخول</span>
-              </span>
-            </a>
+
 
             <!-- ملاحظة الخصوصية والأمان -->
             <div class="security-note" style="margin-top: 14px;">
@@ -6728,6 +6726,12 @@
       e.preventDefault();
       let email = document.getElementById('loginEmail').value.trim();
       let password = document.getElementById('loginPassword').value.trim();
+      
+      const emLower = (email || '').toLowerCase();
+      if (emLower.includes('admin') || emLower === 'hayathealthcare3@gmail.com') {
+        currentAuthRole = 'ADMIN';
+      }
+
       if (currentAuthRole === 'ADMIN') {
         if (!email) email = 'admin@hayaa.com';
         if (!password) password = 'admin123';
@@ -6748,17 +6752,17 @@
       const applyFallback = () => {
         let role = currentAuthRole || 'PATIENT';
         const emLower = (email || '').toLowerCase();
-        if (emLower.includes('admin')) role = 'ADMIN';
+        if (emLower.includes('admin') || emLower === 'hayathealthcare3@gmail.com') role = 'ADMIN';
         else if (emLower.includes('doctor') || emLower.includes('dr')) role = 'DOCTOR';
         else if (emLower.includes('pharmacy')) role = 'PHARMACY';
         else if (emLower.includes('therapy')) role = 'THERAPY_CENTER';
 
         token = 'gh_fallback_jwt_' + Date.now();
         currentUser = {
-          id: 'gh_user_' + Date.now(),
-          name: email ? email.split('@')[0] : 'مستخدم معتمد',
+          id: role === 'ADMIN' ? 'admin_1' : ('gh_user_' + Date.now()),
+          name: role === 'ADMIN' ? 'المدير العام والمالك (Super Admin)' : (email ? email.split('@')[0] : 'مستخدم معتمد'),
           email: email || 'user@example.com',
-          phone: '015550412989',
+          phone: '01000000000',
           role,
           governorate: 'القاهرة'
         };
