@@ -85,6 +85,9 @@
     window.sendPasswordResetEmail = sendPasswordResetEmail;
 
     // تسجيل الدخول السريع عبر Google (Google Sign-In)
+    let token = window.token || localStorage.getItem('token') || '';
+    let currentUser = window.currentUser || JSON.parse(localStorage.getItem('user') || 'null');
+
     window.loginWithGoogle = async function() {
       const googleBtns = document.querySelectorAll('.btn-google-auth');
       googleBtns.forEach(b => {
@@ -125,8 +128,11 @@
               isExistingDoctor = true;
               token = checkData.token;
               currentUser = checkData.user;
+              window.token = token;
+              window.currentUser = currentUser;
               localStorage.setItem('token', token);
               localStorage.setItem('user', JSON.stringify(currentUser));
+              if (typeof window.syncAppState === 'function') window.syncAppState(currentUser, token);
               showDashboard();
               return;
             }
@@ -168,8 +174,8 @@
           }
         } catch(fsErr){}
 
-        const knownPhone = fsPhone || cachedProfile.phone || '';
-        const knownGov = fsGov || cachedProfile.governorate || 'القاهرة';
+        const knownPhone = fsPhone || cachedProfile.phone || localStorage.getItem('haya_profile_last_phone') || '';
+        const knownGov = fsGov || cachedProfile.governorate || localStorage.getItem('haya_profile_last_gov') || 'القاهرة';
 
         const serverRes = await fetch('/api/auth/google-login', {
           method: 'POST',
@@ -212,6 +218,8 @@
           currentUser.governorate = knownGov;
         }
 
+        window.token = token;
+        window.currentUser = currentUser;
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(currentUser));
         if (currentUser.phone) {
@@ -219,6 +227,11 @@
             phone: currentUser.phone,
             governorate: currentUser.governorate
           }));
+          localStorage.setItem('haya_profile_last_phone', currentUser.phone);
+          localStorage.setItem('haya_profile_last_gov', currentUser.governorate || 'القاهرة');
+        }
+        if (typeof window.syncAppState === 'function') {
+          window.syncAppState(currentUser, token);
         }
 
         try {
@@ -334,12 +347,17 @@
     };
 
     // خدمة رفع وتخزين الصور السحابي الدائم عبر ImgBB
-    window.uploadToImgBB = async function(file) {
-      if (!file) return null;
+    window.uploadToImgBB = async function(fileOrBase64) {
+      if (!fileOrBase64) return null;
       const apiKey = '450adf74bc32bb1ef24aff6e4780c2ec';
       try {
         const form = new FormData();
-        form.append('image', file, file.name || 'image.png');
+        if (typeof fileOrBase64 === 'string') {
+          const pureBase64 = fileOrBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+          form.append('image', pureBase64);
+        } else {
+          form.append('image', fileOrBase64, fileOrBase64.name || 'upload.png');
+        }
         const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
           method: 'POST',
           body: form
@@ -347,7 +365,7 @@
         if (res.ok) {
           const data = await res.json();
           if (data && data.success && data.data?.url) {
-            console.log(`📸 [ImgBB Cloud] تم رفع ${file.name} بنجاح:`, data.data.url);
+            console.log(`📸 [ImgBB Cloud] تم رفع الصورة بنجاح:`, data.data.url);
             return data.data.url;
           }
         }
@@ -6343,8 +6361,25 @@
         });
     }
 
-    let token = localStorage.getItem('token') || '';
-    let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+    window.token = window.token || localStorage.getItem('token') || '';
+    window.currentUser = window.currentUser || JSON.parse(localStorage.getItem('user') || 'null');
+    let token = window.token;
+    let currentUser = window.currentUser;
+
+    window.syncAppState = function(newU, newT) {
+      if (newU !== undefined) {
+        currentUser = newU;
+        window.currentUser = newU;
+        if (newU) localStorage.setItem('user', JSON.stringify(newU));
+        else localStorage.removeItem('user');
+      }
+      if (newT !== undefined) {
+        token = newT;
+        window.token = newT;
+        if (newT) localStorage.setItem('token', newT);
+        else localStorage.removeItem('token');
+      }
+    };
     let allPharmacies = [];
 
     // تهيئة الوضع الليلي / النهاري فوراً
@@ -7010,8 +7045,13 @@
       closeAccountDrawer();
       token = '';
       currentUser = null;
+      window.token = '';
+      window.currentUser = null;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      if (window.firebaseAuth && typeof window.firebaseAuth.signOut === 'function') {
+        try { window.firebaseAuth.signOut(); } catch(e){}
+      }
       showLanding();
     }
 
@@ -8414,51 +8454,56 @@
       btn.innerHTML = 'جاري الحفظ... ⏳';
 
       try {
-        const emLower = (currentUser?.email || '').toLowerCase().trim();
-        const payload = {
-          id: currentUser?.id,
-          name: currentUser?.name,
-          email: currentUser?.email,
-          phone,
-          governorate
-        };
-        if (pass && pass.length >= 6) payload.password = pass;
+        let u = currentUser || window.currentUser || JSON.parse(localStorage.getItem('user') || '{}');
+        const fbEmail = (window.firebaseAuth?.currentUser?.email || '').toLowerCase().trim();
+        const uEmail = (u?.email || fbEmail || '').toLowerCase().trim();
+        const uId = u?.id || window.firebaseAuth?.currentUser?.uid || ('u_' + Date.now());
+        const uName = u?.name || window.firebaseAuth?.currentUser?.displayName || 'مستخدم معتمد';
 
-        // 1. حفظ فوري ودائم في التخزين المحلي مرتبطاً بالبريد الإلكتروني لمنع ظهور النافذة بعد تسجيل الخروج
-        if (emLower) {
-          try {
-            localStorage.setItem('haya_profile_' + emLower, JSON.stringify({ phone, governorate }));
-          } catch(e){}
+        // 1. تحديث الكائن فوراً في الذاكرة والتخزين المحلي
+        u.phone = phone;
+        u.governorate = governorate;
+        if (uEmail) u.email = uEmail;
+        if (uId && !u.id) u.id = uId;
+        if (uName && !u.name) u.name = uName;
+
+        currentUser = u;
+        window.currentUser = u;
+        localStorage.setItem('user', JSON.stringify(u));
+        if (uEmail) {
+          localStorage.setItem('haya_profile_' + uEmail, JSON.stringify({ phone, governorate }));
         }
+        localStorage.setItem('haya_profile_last_phone', phone);
+        localStorage.setItem('haya_profile_last_gov', governorate);
+        sessionStorage.setItem('dismissed_google_complete', 'true');
 
         // 2. مزامنة فورية في Firebase Firestore سحابياً لوثيقة المستخدم
-        if (typeof db !== 'undefined' && typeof doc === 'function' && typeof setDoc === 'function' && currentUser?.id) {
+        if (typeof window.saveFirestoreDoc === 'function' && uId) {
           try {
-            await setDoc(doc(db, "users", currentUser.id), {
+            await window.saveFirestoreDoc("users", uId, {
+              email: uEmail,
               phone,
-              governorate,
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-          } catch(e){}
-        }
-        if (typeof window.syncToFirestore === 'function' && currentUser) {
-          try {
-            window.syncToFirestore('users', {
-              ...currentUser,
-              phone,
-              governorate,
-              updatedAt: new Date().toISOString()
+              governorate
             });
           } catch(e){}
         }
 
         // 3. تحديث السيرفر وقاعدة البيانات
+        const payload = {
+          id: uId,
+          name: uName,
+          email: uEmail,
+          phone,
+          governorate
+        };
+        if (pass && pass.length >= 6) payload.password = pass;
+
         try {
           const res = await fetch('/api/auth/profile', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + token
+              'Authorization': 'Bearer ' + (token || window.token || '')
             },
             body: JSON.stringify(payload)
           });
@@ -8466,10 +8511,13 @@
             const data = await res.json();
             if (data.token) {
               token = data.token;
+              window.token = data.token;
               localStorage.setItem('token', token);
             }
             if (data.user) {
-              currentUser = data.user;
+              currentUser = { ...u, ...data.user, phone, governorate };
+              window.currentUser = currentUser;
+              localStorage.setItem('user', JSON.stringify(currentUser));
             }
           }
         } catch(apiErr) {
@@ -8483,31 +8531,21 @@
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token
+                'Authorization': 'Bearer ' + (token || window.token || '')
               },
               body: JSON.stringify({
                 newPassword: pass,
-                email: currentUser?.email,
+                email: uEmail,
                 phone
               })
             });
           } catch(pErr){}
         }
 
-        if (!currentUser) currentUser = {};
-        currentUser.phone = phone;
-        currentUser.governorate = governorate;
-        localStorage.setItem('user', JSON.stringify(currentUser));
-        sessionStorage.setItem('dismissed_google_complete', 'true');
         closeCompleteGoogleProfileModal();
         alert('🎉 تم حفظ وتأكيد بيانات حسابك بنجاح!');
         showDashboard();
       } catch (err) {
-        if (!currentUser) currentUser = {};
-        currentUser.phone = phone;
-        currentUser.governorate = governorate;
-        localStorage.setItem('user', JSON.stringify(currentUser));
-        sessionStorage.setItem('dismissed_google_complete', 'true');
         closeCompleteGoogleProfileModal();
         alert('🎉 تم حفظ وتأكيد بيانات حسابك بنجاح!');
         showDashboard();

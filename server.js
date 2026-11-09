@@ -1504,40 +1504,47 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
 app.put('/api/auth/profile', authenticate, async (req, res) => {
   try {
     const { name, email, phone, governorate, password } = req.body;
+    const cleanEmail = (email || req.user?.email || '').toLowerCase().trim();
     let user = req.user?.id ? await User.findByPk(req.user.id) : null;
-    if (!user && req.user?.email) {
-      user = await User.findOne({ where: { email: req.user.email.toLowerCase() } });
+    if (!user && cleanEmail) {
+      user = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), cleanEmail)
+      });
     }
-    if (!user && email) {
-      user = await User.findOne({ where: { email: email.toLowerCase() } });
+    if (!user && req.user?.email) {
+      user = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), req.user.email.toLowerCase().trim())
+      });
     }
 
     if (!user) {
       // إنشاء المستخدم فوراً إذا لم يكن موجوداً لضمان عدم تعطل حفظ البيانات
-      const cleanEmail = (email || req.user?.email || 'user@example.com').toLowerCase().trim();
+      const fallbackEmail = cleanEmail || (req.user?.email || 'user@example.com').toLowerCase().trim();
       const defaultPass = await bcrypt.hash('PASS_' + Math.random().toString(36), 10);
       user = await User.create({
         id: req.user?.id || ('u_' + Date.now()),
-        name: name || req.user?.name || cleanEmail.split('@')[0] || 'مستخدم معتمد',
-        email: cleanEmail,
+        name: name || req.user?.name || fallbackEmail.split('@')[0] || 'مستخدم معتمد',
+        email: fallbackEmail,
         password: defaultPass,
-        phone: phone || '',
-        governorate: governorate || 'القاهرة',
+        phone: phone ? String(phone).trim() : '',
+        governorate: governorate ? String(governorate).trim() : 'القاهرة',
         role: req.user?.role || 'PATIENT'
       });
     }
 
-    if (email && email.toLowerCase() !== user.email.toLowerCase()) {
-      const existing = await User.findOne({ where: { email: email.toLowerCase() } });
+    if (cleanEmail && cleanEmail !== user.email.toLowerCase()) {
+      const existing = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), cleanEmail)
+      });
       if (existing && existing.id !== user.id) {
         return res.status(400).json({ error: 'البريد الإلكتروني مسجل مسبقاً لمستخدم آخر' });
       }
-      user.email = email.toLowerCase().trim();
+      user.email = cleanEmail;
     }
 
     if (name) user.name = name.trim();
-    if (phone !== undefined) user.phone = phone.trim();
-    if (governorate) user.governorate = governorate.trim();
+    if (phone !== undefined && phone !== null) user.phone = String(phone).trim();
+    if (governorate) user.governorate = String(governorate).trim();
     if (password && String(password).trim().length >= 6) {
       user.password = await bcrypt.hash(String(password).trim(), 10);
     }
@@ -2149,7 +2156,25 @@ app.post('/api/clinics/:id/schedules', authenticate, async (req, res) => {
       });
     }
 
-    const doctor = await Doctor.findByPk(doctorId);
+    let doctor = await Doctor.findByPk(doctorId);
+    if (!doctor) {
+      const fbDoc = (SEED_FALLBACK_DOCTORS || []).find(d => d.id === doctorId || d.name === doctorId);
+      if (fbDoc) {
+        doctor = await Doctor.create({
+          id: fbDoc.id,
+          name: fbDoc.name,
+          specialty: fbDoc.specialty || 'general',
+          bio: fbDoc.bio || 'استشاري معتمد لدى منصة حياه',
+          phone: fbDoc.phone || '01012345678',
+          consultation_fee: fbDoc.consultation_fee || 150,
+          clinic_name: fbDoc.clinic_name || clinic.name,
+          clinic_type: 'POLYCLINIC',
+          governorate: clinic.governorate || 'القاهرة',
+          verification_status: 'VERIFIED',
+          subscription_status: 'PAID'
+        }).catch(() => null);
+      }
+    }
     if (!doctor) return res.status(404).json({ error: 'الطبيب المحدد غير موجود' });
 
     // فحص ما إذا كان هناك طبيب معين مسبقاً لهذا اليوم في نفس العيادة
@@ -2272,20 +2297,57 @@ app.get('/api/therapy-centers/:id', async (req, res) => {
 app.post('/api/therapy-sessions', authenticate, async (req, res) => {
   try {
     const { branch_id } = req.body;
-    const branch = await TherapyBranch.findByPk(branch_id, {
+    let branch = branch_id ? await TherapyBranch.findByPk(branch_id, {
       include: [{ model: TherapyCenter, as: 'center' }]
-    });
-    if (!branch) return res.status(404).json({ error: 'الفرع غير موجود' });
+    }) : null;
+
+    if (!branch && branch_id) {
+      // فحص ما إذا كان المعرف هو لمركز علاج طبيعي أو من بيانات الفولباك
+      let center = await TherapyCenter.findByPk(branch_id);
+      if (!center) {
+        const fbCenter = (SEED_FALLBACK_THERAPY || []).find(c => c.id === branch_id);
+        if (fbCenter) {
+          center = await TherapyCenter.create({
+            id: fbCenter.id,
+            name: fbCenter.name,
+            description: fbCenter.description || 'مركز علاج طبيعي وتأهيل معتمد',
+            services: fbCenter.services || 'جلسات علاج طبيعي وتأهيل حركي',
+            phone: fbCenter.phone || '01012345678',
+            governorate: fbCenter.governorate || 'القاهرة',
+            verification_status: 'VERIFIED'
+          }).catch(() => null);
+        }
+      }
+      if (center) {
+        branch = await TherapyBranch.findOne({ where: { center_id: center.id } });
+        if (!branch) {
+          branch = await TherapyBranch.create({
+            center_id: center.id,
+            branch_name: 'الفرع الرئيسي',
+            governorate: center.governorate || 'القاهرة',
+            district: 'وسط البلد',
+            address: 'شارع التحرير، وسط البلد، القاهرة',
+            session_fee: 180,
+            working_hours: 'يومياً من 9 ص حتى 10 م'
+          }).catch(() => null);
+        }
+      }
+    }
+
+    if (!branch) return res.status(404).json({ error: 'الفرع أو المركز غير موجود' });
 
     const session_fee = branch.session_fee || 180;
     const app_fee = 10;
     const total = session_fee + app_fee;
 
+    const booking_code = 'HY-' + new Date().toISOString().slice(0,10).replace(/-/g, '') + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
     const appointment = await Appointment.create({
       user_id: req.user.id,
       doctor_id: null,
-      therapy_branch_id: branch_id,
+      therapy_branch_id: branch.id,
       booking_type: 'THERAPY',
+      booking_code,
       status: 'WAITING_DOCTOR_TIME',
       doctor_fee: session_fee,
       app_fee,
@@ -3772,7 +3834,16 @@ app.get('/api/orders/my', authenticate, async (req, res) => {
 // طلبيات الروشتات وصرف الأدوية الواردة إلى الصيدلية
 app.get('/api/pharmacy/incoming-orders', authenticate, async (req, res) => {
   try {
+    const whereClause = {};
+    if (req.user?.role === 'PHARMACY') {
+      const ph = await Pharmacy.findOne({ where: { user_id: req.user.id } });
+      if (ph) {
+        whereClause.pharmacy_id = ph.id;
+      }
+    }
+
     const orders = await Order.findAll({
+      where: whereClause,
       include: [
         {
           model: Prescription,
