@@ -8053,15 +8053,16 @@
     let adminUsersList = [];
 
     async function loadAdminDashboard() {
-      loadAdminOverview();
+      await loadAdminUsers();
+      await loadAdminOverview();
       loadAdminVerifications();
       loadAdminClinics();
       loadAdminDoctors();
-      loadAdminUsers();
       loadAdminTherapy();
       loadAdminPayments();
       loadAdminPayouts();
       loadAdminComplaintsCount();
+      loadAdminComplaints();
     }
 
     // ====================================================
