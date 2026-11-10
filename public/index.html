@@ -101,62 +101,17 @@
         const fbUser = result.user;
         if (!fbUser) return;
 
-        let role = (typeof currentAuthRole !== 'undefined' && currentAuthRole) ? currentAuthRole : 'PATIENT';
-        const emLower = (fbUser.email || '').toLowerCase();
-        if (emLower === 'hayathealthcare3@gmail.com' || emLower.includes('admin')) {
-          role = 'ADMIN';
-        }
+        const emLower = (fbUser.email || '').toLowerCase().trim();
+        const emNoDots = emLower.replace(/\./g, '');
+        const isAdminUser = (
+          emLower === 'hayat.healthcare3@gmail.com' ||
+          emLower === 'hayathealthcare3@gmail.com' ||
+          emNoDots === 'hayathealthcare3@gmailcom' ||
+          emLower.includes('admin') ||
+          emLower === 'admin@hayaa.com'
+        );
 
-        // 1. إذا اختار المستخدم صفة طبيب: نتحقق هل هو طبيب مسجل مسبقاً، وإلا نوجهه لنموذج الاعتماد
-        if (role === 'DOCTOR') {
-          let isExistingDoctor = false;
-          try {
-            const checkRes = await fetch('/api/auth/google-login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email: fbUser.email,
-                name: fbUser.displayName || 'مستخدم Google',
-                photoUrl: fbUser.photoURL || '',
-                uid: fbUser.uid,
-                role: 'DOCTOR',
-                checkOnly: true
-              })
-            });
-            const checkData = await checkRes.json();
-            if (checkData.isExistingDoctor && checkData.user) {
-              isExistingDoctor = true;
-              token = checkData.token;
-              currentUser = checkData.user;
-              window.token = token;
-              window.currentUser = currentUser;
-              localStorage.setItem('token', token);
-              localStorage.setItem('user', JSON.stringify(currentUser));
-              if (typeof window.syncAppState === 'function') window.syncAppState(currentUser, token);
-              showDashboard();
-              return;
-            }
-          } catch(e) {}
-
-          // طبيب جديد: لا يتخطى الإجراءات نهائياً!
-          const loginModalEl = document.getElementById('loginModal') || document.getElementById('registerModal');
-          if (loginModalEl) loginModalEl.style.display = 'none';
-          if (typeof openDoctorRegisterModal === 'function') openDoctorRegisterModal();
-          
-          const docNameEl = document.getElementById('docName');
-          const docEmailEl = document.getElementById('docEmail');
-          if (docNameEl) docNameEl.value = fbUser.displayName ? ('د. ' + fbUser.displayName.replace(/^د\.\s*/, '')) : '';
-          if (docEmailEl) {
-            docEmailEl.value = fbUser.email;
-            docEmailEl.readOnly = true;
-            docEmailEl.style.background = '#f1f5f9';
-          }
-          alert('🌟 مرحباً د. ' + (fbUser.displayName || '') + '!\nتم ربط وتوثيق بريدك الإلكتروني بنجاح عبر Google.\nيرجى استكمال بيانات الطبيب (التخصص، رقم الهاتف، بيانات العيادة، والمستندات) لاعتماد وتفعيل حسابك.');
-          return;
-        }
-
-        // 2. إذا كان مريضاً:
-        // استرجاع البروفايل المحفوظ مسبقاً من التخزين المحلي الدائم
+        // استرجاع البروفايل المحفوظ مسبقاً من التخزين المحلي الدائم إن وجد
         let cachedProfile = {};
         try {
           cachedProfile = JSON.parse(localStorage.getItem('haya_profile_' + emLower) || '{}');
@@ -177,15 +132,16 @@
         const knownPhone = fsPhone || cachedProfile.phone || localStorage.getItem('haya_profile_last_phone') || '';
         const knownGov = fsGov || cachedProfile.governorate || localStorage.getItem('haya_profile_last_gov') || 'القاهرة';
 
+        // إرسال طلب التوثيق وتسجيل الدخول للسيرفر مباشرة لتحديد الدور الفعلي الثابت للحساب من قاعدة البيانات
         const serverRes = await fetch('/api/auth/google-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: fbUser.email,
-            name: fbUser.displayName || 'مستخدم Google',
+            name: fbUser.displayName || (isAdminUser ? 'المدير العام والمالك (Super Admin)' : 'مستخدم Google'),
             photoUrl: fbUser.photoURL || '',
             uid: fbUser.uid,
-            role: role,
+            role: isAdminUser ? 'ADMIN' : (typeof currentAuthRole !== 'undefined' ? currentAuthRole : 'PATIENT'),
             phone: knownPhone,
             governorate: knownGov
           })
@@ -193,21 +149,26 @@
 
         let data = {};
         try { data = await serverRes.json(); } catch (e) {}
-        
-        if (serverRes.ok && data.token) {
+
+        if (serverRes.ok && data.token && data.user) {
           token = data.token;
           currentUser = data.user;
         } else {
           token = 'gh_google_jwt_' + Date.now();
           currentUser = {
             id: fbUser.uid,
-            name: fbUser.displayName || 'مستخدم Google',
+            name: fbUser.displayName || (isAdminUser ? 'المدير العام والمالك (Super Admin)' : 'مستخدم Google'),
             email: fbUser.email,
             phone: knownPhone,
-            role: role,
+            role: isAdminUser ? 'ADMIN' : (data.user?.role || (typeof currentAuthRole !== 'undefined' ? currentAuthRole : 'PATIENT')),
             governorate: knownGov,
             photoUrl: fbUser.photoURL || ''
           };
+        }
+
+        // حساب الأدمن دائماً وأبداً دوره ADMIN بدون أدنى شك
+        if (isAdminUser) {
+          currentUser.role = 'ADMIN';
         }
 
         // تثبيت رقم الهاتف والمحافظة المسترجعة في currentUser
@@ -255,18 +216,27 @@
         const loginModal = document.getElementById('loginModal') || document.getElementById('registerModal');
         if (loginModal) loginModal.style.display = 'none';
 
+        if (typeof closeDoctorRegisterModal === 'function') closeDoctorRegisterModal();
+        if (typeof closePharmacyRegisterModal === 'function') closePharmacyRegisterModal();
+        if (typeof closeTherapyRegisterModal === 'function') closeTherapyRegisterModal();
+
         showDashboard();
+        if (typeof updateNavbarAdminVisibility === 'function') {
+          updateNavbarAdminVisibility();
+        }
 
-        // فحص ما إذا كان رقم الهاتف مكتمل مسبقاً، أو تم التخطي في هذه الجلسة
-        const userHasValidPhone = Boolean(currentUser.phone && currentUser.phone.trim().length >= 8);
-        const alreadyDismissed = sessionStorage.getItem('dismissed_google_complete') === 'true';
+        // فحص استكمال بيانات الهاتف لغير الأدمن
+        if (!isAdminUser) {
+          const userHasValidPhone = Boolean(currentUser.phone && currentUser.phone.trim().length >= 8);
+          const alreadyDismissed = sessionStorage.getItem('dismissed_google_complete') === 'true';
 
-        if (!userHasValidPhone && !alreadyDismissed) {
-          setTimeout(() => {
-            if (typeof openCompleteGoogleProfileModal === 'function') {
-              openCompleteGoogleProfileModal();
-            }
-          }, 600);
+          if (!userHasValidPhone && !alreadyDismissed) {
+            setTimeout(() => {
+              if (typeof openCompleteGoogleProfileModal === 'function') {
+                openCompleteGoogleProfileModal();
+              }
+            }, 600);
+          }
         }
       } catch (err) {
         if (err.code === 'auth/popup-closed-by-user') {

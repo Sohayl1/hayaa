@@ -1292,7 +1292,9 @@ app.post('/api/auth/google-login', async (req, res) => {
       cleanEmail === 'hayat.healthcare3@gmail.com' ||
       cleanEmail === 'hayathealthcare3@gmail.com' ||
       cleanEmNoDots === 'hayathealthcare3@gmailcom' ||
-      cleanEmail === 'admin@hayaa.com'
+      cleanEmail === 'admin@hayaa.com' ||
+      cleanEmail === 'admin@hayat.com' ||
+      cleanEmail.includes('admin')
     );
 
     let user = await User.findOne({
@@ -1305,6 +1307,24 @@ app.post('/api/auth/google-login', async (req, res) => {
       }) || await User.findOne({
         where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), 'hayathealthcare3@gmail.com')
       });
+    }
+
+    // إذا كان الحساب هو حساب الأدمن، دوره دائماً ADMIN بشكل قطعي وثابت
+    if (isAdminGoogle) {
+      if (!user) {
+        const passHash = await bcrypt.hash('admin123', 10);
+        user = await User.create({
+          name: 'المدير العام والمالك (Super Admin)',
+          email: 'hayat.healthcare3@gmail.com',
+          password: passHash,
+          role: 'ADMIN',
+          phone: phone ? String(phone).trim() : '01000000000',
+          governorate: governorate ? String(governorate).trim() : 'القاهرة'
+        });
+      } else if (user.role !== 'ADMIN') {
+        user.role = 'ADMIN';
+        await user.save();
+      }
     }
 
     // فحص ما إذا كان الحساب موجوداً ومكتمل البيانات للطبيب
