@@ -1851,7 +1851,25 @@ app.get('/api/doctors', async (req, res) => {
 
 app.get('/api/doctors/:id', async (req, res) => {
   try {
-    const doctor = await Doctor.findByPk(req.params.id);
+    let doctor = await Doctor.findByPk(req.params.id);
+    if (!doctor) {
+      const fbDoc = (SEED_FALLBACK_DOCTORS || []).find(d => d.id === req.params.id);
+      if (fbDoc) {
+        doctor = await Doctor.create({
+          id: fbDoc.id,
+          name: fbDoc.name,
+          specialty: fbDoc.specialty || 'general',
+          bio: fbDoc.bio || 'استشاري معتمد لدى منصة حياه',
+          phone: fbDoc.phone || '01012345678',
+          consultation_fee: fbDoc.consultation_fee || 150,
+          clinic_name: fbDoc.clinic_name || 'عيادة خاصة',
+          clinic_type: 'PRIVATE',
+          governorate: fbDoc.governorate || 'القاهرة',
+          verification_status: 'VERIFIED',
+          subscription_status: 'PAID'
+        }).catch(() => null);
+      }
+    }
     if (!doctor) return res.status(404).json({ error: 'الطبيب غير موجود' });
     res.json(doctor);
   } catch (err) {
@@ -1862,7 +1880,25 @@ app.get('/api/doctors/:id', async (req, res) => {
 // تقييم الطبيب بواسطة المريض وحساب التقييم التراكمي الحي
 app.post('/api/doctors/:id/rate', authenticate, async (req, res) => {
   try {
-    const doctor = await Doctor.findByPk(req.params.id);
+    let doctor = await Doctor.findByPk(req.params.id);
+    if (!doctor) {
+      const fbDoc = (SEED_FALLBACK_DOCTORS || []).find(d => d.id === req.params.id);
+      if (fbDoc) {
+        doctor = await Doctor.create({
+          id: fbDoc.id,
+          name: fbDoc.name,
+          specialty: fbDoc.specialty || 'general',
+          bio: fbDoc.bio || 'استشاري معتمد لدى منصة حياه',
+          phone: fbDoc.phone || '01012345678',
+          consultation_fee: fbDoc.consultation_fee || 150,
+          clinic_name: fbDoc.clinic_name || 'عيادة خاصة',
+          clinic_type: 'PRIVATE',
+          governorate: fbDoc.governorate || 'القاهرة',
+          verification_status: 'VERIFIED',
+          subscription_status: 'PAID'
+        }).catch(() => null);
+      }
+    }
     if (!doctor) return res.status(404).json({ error: 'الطبيب غير موجود' });
 
     const { rating, comment, appointmentId } = req.body;
@@ -3391,6 +3427,56 @@ app.get('/api/doctor/appointments', authenticate, requireDoctor, async (req, res
   }
 });
 
+// سداد رسوم اشتراك الطبيب أو تفعيل كود الخصم (100 جنيه)
+app.post('/api/doctor/subscription-payment', authenticate, async (req, res) => {
+  try {
+    let doctor = await Doctor.findOne({ where: { user_id: req.user.id } });
+    if (!doctor && req.user?.email) {
+      doctor = await Doctor.findOne({
+        include: [{
+          model: User,
+          where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), req.user.email.toLowerCase().trim())
+        }]
+      });
+    }
+    if (!doctor) doctor = await Doctor.findOne({ where: { name: req.user.name } });
+
+    if (!doctor) {
+      return res.status(404).json({ error: 'ملف الطبيب غير موجود' });
+    }
+
+    const { promoCode, phone, txRef, receiptUrl } = req.body;
+    if (promoCode) {
+      const cleanCode = String(promoCode).trim().toUpperCase();
+      if (VALID_PROMO_CODES.includes(cleanCode)) {
+        doctor.promo_code = cleanCode;
+        doctor.subscription_status = 'FREE_PROMO';
+        doctor.subscription_fee = 0;
+        await doctor.save();
+        return res.json({
+          success: true,
+          message: '🎉 تم تفعيل الكود الترويجي المجاني وإعفاؤك من الرسوم!',
+          subscription_status: 'FREE_PROMO'
+        });
+      } else {
+        return res.status(400).json({ error: 'كود ترويجي غير صالح. يرجى التأكد من كتابة الكود بشكل صحيح.' });
+      }
+    }
+
+    // إشعار سداد نقدي / فودافون كاش / إنستاباي
+    doctor.subscription_status = 'PAYMENT_SUBMITTED';
+    await doctor.save();
+
+    res.json({
+      success: true,
+      message: '✅ تم استلام بيانات سداد رسوم الاشتراك وإرفاق الإيصال بنجاح! جاري مراجعة التحويل واعتماد الحساب من قبل الإدارة.',
+      subscription_status: 'PAYMENT_SUBMITTED'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ====================================================
 // --- محفظة الطبيب والأرباح وسحب الأموال (Doctor Wallet & Payouts) ---
 // ====================================================
@@ -3686,8 +3772,16 @@ app.post('/api/prescriptions', authenticate, requireDoctor, async (req, res) => 
 // عرض روشتات المريض المسجل
 app.get('/api/prescriptions/my', authenticate, async (req, res) => {
   try {
+    const userIds = [req.user.id];
+    if (req.user.email) {
+      const u = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), req.user.email.toLowerCase().trim())
+      });
+      if (u && !userIds.includes(u.id)) userIds.push(u.id);
+    }
+
     const prescriptions = await Prescription.findAll({
-      where: { user_id: req.user.id },
+      where: { user_id: userIds.length === 1 ? userIds[0] : { [Op.in]: userIds } },
       include: [
         { model: Doctor, attributes: ['id', 'name', 'specialty'] },
         { model: Appointment, attributes: ['id', 'time_slot', 'paid'] },
@@ -3757,12 +3851,36 @@ app.post('/api/orders', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'طريقة الاستلام يجب أن تكون إما PICKUP أو DELIVERY' });
     }
 
+    const userIds = [req.user.id];
+    if (req.user.email) {
+      const u = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), req.user.email.toLowerCase().trim())
+      });
+      if (u && !userIds.includes(u.id)) userIds.push(u.id);
+    }
+
     const prescription = await Prescription.findOne({
-      where: { id: prescriptionId, user_id: req.user.id }
+      where: {
+        id: prescriptionId,
+        user_id: userIds.length === 1 ? userIds[0] : { [Op.in]: userIds }
+      }
     });
     if (!prescription) return res.status(404).json({ error: 'الروشتة غير موجودة أو غير تابعة لك' });
 
-    const pharmacy = await Pharmacy.findByPk(pharmacyId);
+    let pharmacy = await Pharmacy.findByPk(pharmacyId);
+    if (!pharmacy) {
+      const fbPh = (SEED_FALLBACK_PHARMACIES || []).find(p => p.id === pharmacyId);
+      if (fbPh) {
+        pharmacy = await Pharmacy.create({
+          id: fbPh.id,
+          name: fbPh.name,
+          address: fbPh.address || 'القاهرة',
+          phone: fbPh.phone || '01012345678',
+          governorate: fbPh.governorate || 'القاهرة',
+          verification_status: 'VERIFIED'
+        }).catch(() => null);
+      }
+    }
     if (!pharmacy) return res.status(404).json({ error: 'الصيدلية المحددة غير موجودة' });
 
     // التحقق من عدم وجود طلب مسبق لنفس الروشتة
@@ -3811,11 +3929,19 @@ app.patch('/api/orders/:id/status', authenticate, async (req, res) => {
 // عرض طلبات المستخدم
 app.get('/api/orders/my', authenticate, async (req, res) => {
   try {
+    const userIds = [req.user.id];
+    if (req.user.email) {
+      const u = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), req.user.email.toLowerCase().trim())
+      });
+      if (u && !userIds.includes(u.id)) userIds.push(u.id);
+    }
+
     const orders = await Order.findAll({
       include: [
         {
           model: Prescription,
-          where: { user_id: req.user.id },
+          where: { user_id: userIds.length === 1 ? userIds[0] : { [Op.in]: userIds } },
           include: [{ model: Doctor, attributes: ['name', 'specialty'] }]
         },
         {

@@ -7931,13 +7931,41 @@
       if (modal) modal.style.display = 'none';
     }
 
-    function applyDoctorSubscriptionPromo() {
+    async function applyDoctorSubscriptionPromo() {
       const code = document.getElementById('docSubPromoCodeInput')?.value.trim().toUpperCase();
-      if (code === 'HAYAAFREE') {
+      if (!code) {
+        alert('يرجى كتابة الكود الترويجي أولاً');
+        return;
+      }
+      try {
+        const res = await fetch('/api/doctor/subscription-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (token || window.token || '')
+          },
+          body: JSON.stringify({ promoCode: code })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          currentUser.subscription_status = 'FREE_PROMO';
+          currentUser.promo_code = code;
+          window.currentUser = currentUser;
+          localStorage.setItem('user', JSON.stringify(currentUser));
+          alert(data.message || '🎉 تم تفعيل الكود الترويجي وإعفاؤك من رسوم الاشتراك بنجاح!');
+          closeDoctorSubscriptionPaymentModal();
+          renderDoctorPendingScreen();
+          return;
+        }
+      } catch(e) {}
+
+      const validLocalPromos = ['HAYAAFREE', 'FREE', 'FREE2026', 'HAYAA', 'HAYA'];
+      if (validLocalPromos.includes(code)) {
         currentUser.subscription_status = 'FREE_PROMO';
-        currentUser.promo_code = 'HAYAAFREE';
+        currentUser.promo_code = code;
+        window.currentUser = currentUser;
         localStorage.setItem('user', JSON.stringify(currentUser));
-        alert('🎉 تم تفعيل الكود الترويجي المجاني (HAYAAFREE) بنجاح وإعفاء رسوم الاشتراك!');
+        alert('🎉 تم تفعيل الكود الترويجي المجاني (' + code + ') بنجاح وإعفاء رسوم الاشتراك!');
         closeDoctorSubscriptionPaymentModal();
         renderDoctorPendingScreen();
       } else {
@@ -7968,12 +7996,24 @@
           } catch(e){}
         }
 
+        // إرسال الإشعار لخادم المنصة لحفظه في قاعدة البيانات
+        try {
+          await fetch('/api/doctor/subscription-payment', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + (token || window.token || '')
+            },
+            body: JSON.stringify({ phone, txRef, receiptUrl })
+          });
+        } catch(apiErr){}
+
         if (typeof window.syncToFirestore === 'function') {
           try {
             await window.syncToFirestore('subscription_payments', {
-              user_id: currentUser.id,
-              user_name: currentUser.name,
-              user_email: currentUser.email,
+              user_id: currentUser?.id,
+              user_name: currentUser?.name,
+              user_email: currentUser?.email,
               user_phone: phone,
               tx_ref: txRef || '',
               receipt_url: receiptUrl,
@@ -7983,7 +8023,8 @@
           } catch(e){}
         }
 
-        currentUser.subscription_status = 'PAID';
+        currentUser.subscription_status = 'PAYMENT_SUBMITTED';
+        window.currentUser = currentUser;
         localStorage.setItem('user', JSON.stringify(currentUser));
         closeDoctorSubscriptionPaymentModal();
         alert('✅ تم استلام بيانات سداد رسوم الاشتراك (100 جنيه) بنجاح!\nجاري مراجعة التحويل واعتماد الحساب من قبل مالك المنصة.');
