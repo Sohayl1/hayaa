@@ -1185,13 +1185,23 @@ app.post('/api/auth/quick-demo-login', async (req, res) => {
     else if (rawRole === 'PHARMACY') role = 'PHARMACY';
     else if (rawRole === 'THERAPY' || rawRole === 'THERAPY_CENTER') role = 'THERAPY_CENTER';
 
-    let user = await User.findOne({ where: { role } });
+    let user;
+    if (role === 'ADMIN') {
+      user = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), 'hayat.healthcare3@gmail.com')
+      }) || await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), 'hayathealthcare3@gmail.com')
+      }) || await User.findOne({ where: { role: 'ADMIN' } });
+    } else {
+      user = await User.findOne({ where: { role } });
+    }
+
     if (!user) {
       if (role === 'ADMIN') {
         const pass = await bcrypt.hash('admin123', 10);
         user = await User.create({
           name: 'المدير العام والمالك (Super Admin)',
-          email: 'admin@hayaa.com',
+          email: 'hayat.healthcare3@gmail.com',
           password: pass,
           role: 'ADMIN',
           governorate: 'القاهرة'
@@ -1277,14 +1287,34 @@ app.post('/api/auth/google-login', async (req, res) => {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
+    const cleanEmNoDots = cleanEmail.replace(/\./g, '');
+    const isAdminGoogle = (
+      cleanEmail === 'hayat.healthcare3@gmail.com' ||
+      cleanEmail === 'hayathealthcare3@gmail.com' ||
+      cleanEmNoDots === 'hayathealthcare3@gmailcom' ||
+      cleanEmail === 'admin@hayaa.com'
+    );
+
     let user = await User.findOne({
       where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), cleanEmail)
     });
+
+    if (!user && (cleanEmail === 'hayat.healthcare3@gmail.com' || cleanEmail === 'hayathealthcare3@gmail.com')) {
+      user = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), 'hayat.healthcare3@gmail.com')
+      }) || await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), 'hayathealthcare3@gmail.com')
+      });
+    }
 
     // فحص ما إذا كان الحساب موجوداً ومكتمل البيانات للطبيب
     if (checkOnly) {
       if (!user) {
         return res.json({ isExisting: false, isExistingDoctor: false });
+      }
+      if (isAdminGoogle && user.role !== 'ADMIN') {
+        user.role = 'ADMIN';
+        await user.save();
       }
       if (role === 'DOCTOR' || user.role === 'DOCTOR') {
         let doctor = await Doctor.findOne({ where: { user_id: user.id } });
@@ -1321,6 +1351,10 @@ app.post('/api/auth/google-login', async (req, res) => {
     }
 
     if (user) {
+      if (isAdminGoogle && user.role !== 'ADMIN') {
+        user.role = 'ADMIN';
+        await user.save();
+      }
       if (phone && String(phone).trim() && (!user.phone || user.phone.trim() === '')) {
         user.phone = String(phone).trim();
         await user.save();
@@ -1330,15 +1364,17 @@ app.post('/api/auth/google-login', async (req, res) => {
         await user.save();
       }
     } else {
-      const assignedRole = (role && ['PATIENT', 'DOCTOR', 'PHARMACY', 'THERAPY'].includes(role.toUpperCase())) 
-        ? role.toUpperCase() 
-        : 'PATIENT';
+      const assignedRole = isAdminGoogle
+        ? 'ADMIN'
+        : ((role && ['PATIENT', 'DOCTOR', 'PHARMACY', 'THERAPY'].includes(role.toUpperCase())) 
+          ? role.toUpperCase() 
+          : 'PATIENT');
       const randomPassword = await bcrypt.hash('GOOGLE_AUTH_' + Math.random().toString(36), 10);
       user = await User.create({
-        name: name || 'مستخدم Google',
+        name: isAdminGoogle ? 'المدير العام والمالك (Super Admin)' : (name || 'مستخدم Google'),
         email: cleanEmail,
         password: randomPassword,
-        phone: phone ? String(phone).trim() : '',
+        phone: phone ? String(phone).trim() : (isAdminGoogle ? '01000000000' : ''),
         role: assignedRole,
         governorate: governorate ? String(governorate).trim() : 'القاهرة'
       });
@@ -1408,19 +1444,27 @@ app.post('/api/auth/login', async (req, res) => {
     password = String(password).trim();
 
     // دعم كافة أسماء الأدمن الشائعة والتجريبية لضمان الدخول السلس
+    const cleanEmNoDots = email.replace(/\./g, '');
     const isAdminAlias = (
+      email === 'hayat.healthcare3@gmail.com' ||
+      email === 'hayathealthcare3@gmail.com' ||
+      cleanEmNoDots === 'hayathealthcare3@gmailcom' ||
       email.includes('admin') ||
       email === 'admin@hayat.com' ||
       email === 'admin@hayaa.com' ||
       email === 'admin@haya.com' ||
       email === 'admin' ||
-      email === 'hayathealthcare3@gmail.com' ||
       email === (process.env.ADMIN_EMAIL || '').toLowerCase()
     );
 
     let user;
     if (isAdminAlias) {
-      user = await User.findOne({ where: { role: 'ADMIN' } });
+      user = await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), 'hayat.healthcare3@gmail.com')
+      }) || await User.findOne({
+        where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), 'hayathealthcare3@gmail.com')
+      }) || await User.findOne({ where: { role: 'ADMIN' } });
+
       const isValidAdminPass = (
         password === 'admin123' ||
         password === 'admin' ||
@@ -1432,7 +1476,7 @@ app.post('/api/auth/login', async (req, res) => {
         const passHash = await bcrypt.hash('admin123', 10);
         user = await User.create({
           name: 'المدير العام والمالك (Super Admin)',
-          email: 'admin@hayaa.com',
+          email: 'hayat.healthcare3@gmail.com',
           password: passHash,
           role: 'ADMIN',
           governorate: 'القاهرة'
