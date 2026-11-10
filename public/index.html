@@ -211,10 +211,10 @@
         }
 
         // تثبيت رقم الهاتف والمحافظة المسترجعة في currentUser
-        if (knownPhone && (!currentUser.phone || currentUser.phone === '01012345678')) {
+        if (knownPhone && (!currentUser.phone || currentUser.phone.trim() === '')) {
           currentUser.phone = knownPhone;
         }
-        if (knownGov && !currentUser.governorate) {
+        if (knownGov && (!currentUser.governorate || currentUser.governorate.trim() === '')) {
           currentUser.governorate = knownGov;
         }
 
@@ -258,7 +258,7 @@
         showDashboard();
 
         // فحص ما إذا كان رقم الهاتف مكتمل مسبقاً، أو تم التخطي في هذه الجلسة
-        const userHasValidPhone = currentUser.phone && currentUser.phone.trim() !== '' && currentUser.phone !== '01012345678';
+        const userHasValidPhone = Boolean(currentUser.phone && currentUser.phone.trim().length >= 8);
         const alreadyDismissed = sessionStorage.getItem('dismissed_google_complete') === 'true';
 
         if (!userHasValidPhone && !alreadyDismissed) {
@@ -6999,8 +6999,13 @@
           role,
           governorate: 'القاهرة'
         };
+        window.token = token;
+        window.currentUser = currentUser;
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(currentUser));
+        if (typeof window.syncAppState === 'function') {
+          window.syncAppState(currentUser, token);
+        }
         if (typeof closeRegisterModal === 'function') closeRegisterModal();
         showDashboard();
       };
@@ -7015,8 +7020,25 @@
         if (res.ok && data.token) {
           token = data.token;
           currentUser = data.user;
+          window.token = token;
+          window.currentUser = currentUser;
           localStorage.setItem('token', token);
           localStorage.setItem('user', JSON.stringify(currentUser));
+          if (currentUser.email) {
+            localStorage.setItem('haya_profile_' + currentUser.email.toLowerCase().trim(), JSON.stringify({
+              phone: currentUser.phone || '',
+              governorate: currentUser.governorate || 'القاهرة'
+            }));
+          }
+          if (currentUser.phone) {
+            localStorage.setItem('haya_profile_last_phone', currentUser.phone);
+          }
+          if (currentUser.governorate) {
+            localStorage.setItem('haya_profile_last_gov', currentUser.governorate);
+          }
+          if (typeof window.syncAppState === 'function') {
+            window.syncAppState(currentUser, token);
+          }
           if (typeof closeRegisterModal === 'function') closeRegisterModal();
           showDashboard();
           return;
@@ -8555,10 +8577,11 @@
               window.token = data.token;
               localStorage.setItem('token', token);
             }
-            if (data.user) {
-              currentUser = { ...u, ...data.user, phone, governorate };
-              window.currentUser = currentUser;
-              localStorage.setItem('user', JSON.stringify(currentUser));
+            currentUser = { ...u, ...(data.user || {}), phone, governorate };
+            window.currentUser = currentUser;
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            if (typeof window.syncAppState === 'function') {
+              window.syncAppState(currentUser, token);
             }
           }
         } catch(apiErr) {
@@ -11137,8 +11160,18 @@
       }
     }
 
-    function updatePharmacyOrderStatus(orderId, newStatus) {
-      const ord = samplePharmacyOrders.find(o => o.id === orderId);
+    async function updatePharmacyOrderStatus(orderId, newStatus) {
+      try {
+        await fetch(`/api/orders/${orderId}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (token || window.token || '')
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+      } catch(e) {}
+      const ord = (samplePharmacyOrders || []).find(o => o.id === orderId);
       if (ord) ord.status = newStatus;
       alert('🎉 تم تحديث حالة الطلب بنجاح!');
       loadPharmacyIncomingOrders();
@@ -11148,6 +11181,9 @@
       const container = document.getElementById('pharmacyProfileDetails');
       if (!container) return;
 
+      const phName = currentUser?.name || 'صيدلية الشفاء المركزية';
+      const phGov = currentUser?.governorate || 'القاهرة (وسط البلد)';
+
       container.innerHTML = `
         <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:22px; max-width:750px;">
           <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:18px;">
@@ -11155,14 +11191,14 @@
               💊
             </div>
             <div>
-              <h3 style="margin:0 0 4px 0; font-size:18px; font-weight:900; color:#0b1e33;">صيدلية الشفاء المركزية</h3>
+              <h3 style="margin:0 0 4px 0; font-size:18px; font-weight:900; color:#0b1e33;">${phName}</h3>
               <span style="background:#dcfce7; color:#15803d; font-size:11.5px; font-weight:800; padding:2px 10px; border-radius:10px;">صيدلية معتمدة ومفعلة ✓</span>
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; font-size:13px; color:#334155; margin-bottom:20px;">
             <div style="background:#f8fafc; padding:12px; border-radius:12px;">🏢 <strong>نوع المنشأة:</strong> صيدلية أهلية معتمدة</div>
-            <div style="background:#f8fafc; padding:12px; border-radius:12px;">📍 <strong>المحافظة:</strong> القاهرة (وسط البلد)</div>
+            <div style="background:#f8fafc; padding:12px; border-radius:12px;">📍 <strong>المحافظة:</strong> ${phGov}</div>
             <div style="background:#f8fafc; padding:12px; border-radius:12px;">🕒 <strong>مواعيد العمل:</strong> مفتوح 24 ساعة طوال الأسبوع</div>
             <div style="background:#f8fafc; padding:12px; border-radius:12px;">🛵 <strong>خدمة التوصيل:</strong> متوفرة وسريعة لكافة المناطق المحيطة</div>
           </div>
@@ -11218,9 +11254,23 @@
       const container = document.getElementById('therapySessionsListContainer');
       if (!container) return;
 
+      let sessions = [];
+      try {
+        const res = await fetch('/api/therapy/incoming-sessions', {
+          headers: { 'Authorization': `Bearer ${token || window.token || ''}` }
+        });
+        if (res.ok) {
+          sessions = await res.json();
+        }
+      } catch(e) {}
+
+      if (!sessions || !sessions.length) {
+        sessions = sampleTherapySessions;
+      }
+
       container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:14px;">
-          ${sampleTherapySessions.map(sess => {
+          ${sessions.map(sess => {
             const isCompleted = sess.status === 'COMPLETED';
             return `
               <div style="background:white; border:1.5px solid #e2e8f0; border-radius:16px; padding:18px; box-shadow:0 3px 12px rgba(0,0,0,0.04);">
@@ -11262,8 +11312,18 @@
       `;
     }
 
-    function completeTherapySession(id) {
-      const s = sampleTherapySessions.find(x => x.id === id);
+    async function completeTherapySession(id) {
+      try {
+        await fetch(`/api/appointments/${id}/set-time`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (token || window.token || '')
+          },
+          body: JSON.stringify({ scheduledTime: 'جلسة مكتملة', doctorNotes: 'تم حضور وإتمام الجلسة الطبية' })
+        });
+      } catch(e) {}
+      const s = (sampleTherapySessions || []).find(x => x.id === id);
       if (s) s.status = 'COMPLETED';
       alert('🎉 تم تأكيد إتمام الجلسة الطبية بنجاح!');
       loadTherapySessions();
@@ -11273,6 +11333,8 @@
       const container = document.getElementById('therapyProfileDetails');
       if (!container) return;
 
+      const tcName = currentUser?.name || 'مركز ريهاب بلس للعلاج الطبيعي والتأهيل الرياضي';
+
       container.innerHTML = `
         <div style="background:white; border:1.5px solid #cbd5e1; border-radius:18px; padding:22px; max-width:800px;">
           <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:18px;">
@@ -11280,7 +11342,7 @@
               🏃
             </div>
             <div>
-              <h3 style="margin:0 0 4px 0; font-size:18px; font-weight:900; color:#0b1e33;">مركز ريهاب بلس للعلاج الطبيعي والتأهيل الرياضي</h3>
+              <h3 style="margin:0 0 4px 0; font-size:18px; font-weight:900; color:#0b1e33;">${tcName}</h3>
               <span style="background:#dcfce7; color:#15803d; font-size:11.5px; font-weight:800; padding:2px 10px; border-radius:10px;">مركز معتمد ومسجل ✓</span>
             </div>
           </div>
