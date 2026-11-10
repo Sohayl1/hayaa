@@ -902,7 +902,7 @@ Doctor.hasMany(Appointment, { foreignKey: 'doctor_id', onDelete: 'CASCADE' });
 Appointment.belongsTo(Doctor, { foreignKey: 'doctor_id' });
 
 TherapyBranch.hasMany(Appointment, { foreignKey: 'therapy_branch_id', onDelete: 'SET NULL' });
-Appointment.belongsTo(TherapyBranch, { foreignKey: 'therapy_branch_id' });
+Appointment.belongsTo(TherapyBranch, { as: 'TherapyBranch', foreignKey: 'therapy_branch_id' });
 
 TherapyCenter.hasMany(TherapyBranch, { as: 'branches', foreignKey: 'center_id', onDelete: 'CASCADE' });
 TherapyBranch.belongsTo(TherapyCenter, { as: 'center', foreignKey: 'center_id' });

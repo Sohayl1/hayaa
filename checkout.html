@@ -931,9 +931,30 @@
           : (Number(appt.price_cents) || (docFee + appFee));
         currentTotal = total;
 
-        document.getElementById('sumDocName').textContent = appt.Doctor ? ('د. ' + appt.Doctor.name.replace(/^د\.\s*/, '')) : 'د. استشاري حياه';
-        document.getElementById('sumDocSpecialty').textContent = appt.Doctor?.specialty === 'women' ? 'نساء وتوليد' : appt.Doctor?.specialty === 'children' ? 'أطفال' : 'طب عام وباطنة';
-        document.getElementById('sumDocClinic').textContent = appt.Doctor?.clinic_name || 'عيادة خاصة';
+        const specMap = {
+          general: 'طب عام وباطنة',
+          neuro: 'مخ وأعصاب',
+          children: 'طب الأطفال',
+          women: 'نساء وتوليد',
+          eyes: 'عيون وجراحة العيون',
+          ent: 'أنف وأذن وحنجرة',
+          dental: 'طب الأسنان',
+          derma: 'جلدية وتجميل',
+          psych: 'طب نفسي',
+          cardio: 'أمراض القلب',
+          heart: 'أمراض القلب',
+          ortho: 'جراحة العظام',
+          bones: 'جراحة العظام',
+          therapy: 'علاج طبيعي وتأهيل',
+          physio: 'علاج طبيعي وتأهيل'
+        };
+        const rawSpec = appt.Doctor?.specialty || 'general';
+        const isTherapy = appt.booking_type === 'THERAPY' || !!appt.TherapyBranch;
+        const centerName = appt.TherapyBranch?.center?.name || appt.TherapyBranch?.branch_name || 'مركز علاج طبيعي وتأهيل';
+
+        document.getElementById('sumDocName').textContent = isTherapy ? centerName : (appt.Doctor ? ('د. ' + appt.Doctor.name.replace(/^د\.\s*/, '')) : 'د. استشاري حياه');
+        document.getElementById('sumDocSpecialty').textContent = isTherapy ? 'علاج طبيعي وتأهيل حركي' : (specMap[rawSpec] || rawSpec || 'طب عام وباطنة');
+        document.getElementById('sumDocClinic').textContent = isTherapy ? (appt.TherapyBranch?.branch_name || 'الفرع الرئيسي') : (appt.Doctor?.clinic_name || 'عيادة خاصة');
         document.getElementById('sumPatientName').textContent = appt.User?.name || 'مريض مسجل';
         document.getElementById('sumDocTime').textContent = appt.doctor_scheduled_time || 'في انتظار تحديد الطبيب';
         document.getElementById('sumDocFee').textContent = docFee + ' جنيه';

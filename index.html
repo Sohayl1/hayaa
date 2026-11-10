@@ -12416,7 +12416,7 @@
 
                 ${p.Order ? `
                   <div style="font-size:12.5px; color:#166534; font-weight:800; background:#dcfce7; padding:8px 12px; border-radius:10px; text-align:center;">
-                    ✅ تم صرف الدواء من الصيدلية (${p.Order.status})
+                    ✅ تم طلب وصرف الدواء من الصيدلية (${p.Order.status === 'DELIVERED' ? 'تم التسليم' : p.Order.status === 'OUT_FOR_DELIVERY' ? 'جاري التوصيل' : 'قيد التجهيز'})
                   </div>
                 ` : `
                   <button class="btn-book" style="padding:10px; font-size:13px;" onclick="openOrderPharmacyModal('${p.id}')">
@@ -12854,7 +12854,7 @@
               <div class="doctor-box">
                 <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
                   <span style="font-size:12px; font-weight:bold; color:#00897b;">${o.delivery_method === 'DELIVERY' ? '🚚 توصيل منزلي' : '🏬 استلام من الفرع'}</span>
-                  <span style="background:#e0f2f1; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; color:#00796b;">${o.status}</span>
+                  <span style="background:${o.status === 'DELIVERED' ? '#dcfce7' : o.status === 'OUT_FOR_DELIVERY' ? '#e0f2fe' : '#fef3c7'}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; color:${o.status === 'DELIVERED' ? '#166534' : o.status === 'OUT_FOR_DELIVERY' ? '#0369a1' : '#b45309'};">${o.status === 'DELIVERED' ? '✅ تم التسليم' : o.status === 'OUT_FOR_DELIVERY' ? '🛵 جاري التوصيل' : '⏳ قيد التجهيز'}</span>
                 </div>
                 <h4 style="font-size:14px; font-weight:bold;">${o.Pharmacy?.name || 'صيدلية'}</h4>
                 <p style="font-size:12px; color:#64748b;">العلاج: ${o.Prescription?.text || '-'}</p>

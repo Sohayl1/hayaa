@@ -3117,7 +3117,8 @@ app.get('/api/appointments/:id', authenticate, async (req, res) => {
     const appointment = await Appointment.findByPk(req.params.id, {
       include: [
         { model: Doctor, attributes: ['id', 'name', 'specialty', 'rating', 'bio', 'consultation_fee', 'phone', 'clinic_name', 'clinic_type'] },
-        { model: User, attributes: ['id', 'name', 'email'] }
+        { model: User, attributes: ['id', 'name', 'email'] },
+        { model: TherapyBranch, as: 'TherapyBranch', include: [{ model: TherapyCenter, as: 'center' }] }
       ]
     });
     if (!appointment) return res.status(404).json({ error: 'الموعد غير موجود' });
@@ -3239,7 +3240,8 @@ app.post('/api/payments/paymob/create-intention', authenticate, async (req, res)
 
     const doctorFee = parseInt(appointment.doctor_fee || appointment.Doctor?.consultation_fee) || 150;
     const appFee = parseInt(appointment.app_fee) || 10;
-    const totalPriceEgp = appointment.price_cents || (doctorFee + appFee);
+    let totalPriceEgp = appointment.price_cents || (doctorFee + appFee);
+    if (totalPriceEgp > 500) totalPriceEgp = Math.round(totalPriceEgp / 100);
 
     const serverBaseUrl = process.env.SERVER_BASE_URL || `${req.protocol}://${req.get('host')}`;
     const notificationUrl = `${serverBaseUrl}/api/payments/paymob/webhook`;
