@@ -1293,8 +1293,7 @@ app.post('/api/auth/google-login', async (req, res) => {
       cleanEmail === 'hayathealthcare3@gmail.com' ||
       cleanEmNoDots === 'hayathealthcare3@gmailcom' ||
       cleanEmail === 'admin@hayaa.com' ||
-      cleanEmail === 'admin@hayat.com' ||
-      cleanEmail.includes('admin')
+      cleanEmail === 'admin@hayat.com'
     );
 
     let user = await User.findOne({
@@ -1954,24 +1953,94 @@ app.put('/api/doctors/my-clinic-schedule', authenticate, async (req, res) => {
 // --- 2. دليل الأطباء (Doctors Catalog) ---
 app.get('/api/doctors', async (req, res) => {
   try {
-    const { specialty, governorate } = req.query;
+    const { specialty, governorate, search } = req.query;
     const where = { verification_status: 'VERIFIED' };
-    if (specialty) where.specialty = specialty;
-    if (governorate) where.governorate = governorate;
+
+    // خريطة التخصصات ومترادفاتها الطبية
+    const specMap = {
+      cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب'],
+      ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام'],
+      therapy: ['therapy', 'physio', 'physical_therapy', 'علاج طبيعي', 'علاج طبيعي وتأهيل'],
+      general: ['general', 'internal', 'طب عام', 'باطنة', 'طب عام وباطنة'],
+      children: ['children', 'pediatric', 'أطفال', 'طب الأطفال'],
+      women: ['women', 'gynecology', 'نساء وتوليد'],
+      eyes: ['eyes', 'ophthalmology', 'عيون', 'عيون وجراحة العيون'],
+      ent: ['ent', 'أنف وأذن وحنجرة', 'أنف وأذن'],
+      dental: ['dental', 'dentistry', 'أسنان', 'طب الأسنان'],
+      derma: ['derma', 'dermatology', 'جلدية', 'جلدية وتجميل'],
+      psych: ['psych', 'psychiatry', 'نفسي', 'طب نفسي']
+    };
+
+    if (specialty && specialty.trim()) {
+      const cleanSpec = specialty.trim();
+      const synonyms = specMap[cleanSpec] || [cleanSpec];
+      where.specialty = { [Op.in]: synonyms };
+    }
+
+    if (governorate && governorate.trim()) {
+      where.governorate = governorate.trim();
+    }
+
+    if (search && search.trim()) {
+      const term = `%${search.trim().toLowerCase()}%`;
+      where[Op.or] = [
+        sequelize.where(sequelize.fn('lower', sequelize.col('name')), { [Op.like]: term }),
+        sequelize.where(sequelize.fn('lower', sequelize.col('clinic_name')), { [Op.like]: term }),
+        sequelize.where(sequelize.fn('lower', sequelize.col('specialty')), { [Op.like]: term }),
+        sequelize.where(sequelize.fn('lower', sequelize.col('bio')), { [Op.like]: term })
+      ];
+    }
+
     let doctors = await Doctor.findAll({
       where,
       order: [['rating', 'DESC']]
     });
+
     if (!doctors || !doctors.length) {
-      doctors = SEED_FALLBACK_DOCTORS;
-      if (specialty) doctors = doctors.filter(d => d.specialty === specialty);
-      if (governorate) doctors = doctors.filter(d => d.governorate === governorate);
+      doctors = Array.isArray(SEED_FALLBACK_DOCTORS) ? [...SEED_FALLBACK_DOCTORS] : [];
+      if (specialty && specialty.trim()) {
+        const cleanSpec = specialty.trim();
+        const allowed = specMap[cleanSpec] || [cleanSpec];
+        doctors = doctors.filter(d => allowed.includes(d.specialty));
+      }
+      if (governorate && governorate.trim()) {
+        doctors = doctors.filter(d => d.governorate === governorate.trim());
+      }
+      if (search && search.trim()) {
+        const q = search.trim().toLowerCase();
+        doctors = doctors.filter(d =>
+          (d.name && d.name.toLowerCase().includes(q)) ||
+          (d.clinic_name && d.clinic_name.toLowerCase().includes(q)) ||
+          (d.specialty && d.specialty.toLowerCase().includes(q)) ||
+          (d.bio && d.bio.toLowerCase().includes(q))
+        );
+      }
     }
     res.json(doctors);
   } catch (err) {
-    let docs = SEED_FALLBACK_DOCTORS;
-    if (req.query.specialty) docs = docs.filter(d => d.specialty === req.query.specialty);
-    if (req.query.governorate) docs = docs.filter(d => d.governorate === req.query.governorate);
+    let docs = Array.isArray(SEED_FALLBACK_DOCTORS) ? [...SEED_FALLBACK_DOCTORS] : [];
+    if (req.query.specialty && req.query.specialty.trim()) {
+      const cleanSpec = req.query.specialty.trim();
+      const specMap = {
+        cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب'],
+        ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام'],
+        therapy: ['therapy', 'physio', 'physical_therapy', 'علاج طبيعي'],
+        general: ['general', 'internal', 'طب عام', 'باطنة']
+      };
+      const allowed = specMap[cleanSpec] || [cleanSpec];
+      docs = docs.filter(d => allowed.includes(d.specialty));
+    }
+    if (req.query.governorate && req.query.governorate.trim()) {
+      docs = docs.filter(d => d.governorate === req.query.governorate.trim());
+    }
+    if (req.query.search && req.query.search.trim()) {
+      const q = req.query.search.trim().toLowerCase();
+      docs = docs.filter(d =>
+        (d.name && d.name.toLowerCase().includes(q)) ||
+        (d.clinic_name && d.clinic_name.toLowerCase().includes(q)) ||
+        (d.specialty && d.specialty.toLowerCase().includes(q))
+      );
+    }
     res.json(docs);
   }
 });
@@ -2788,33 +2857,79 @@ app.get('/api/admin/pending-verifications', authenticate, requireAdmin, async (r
 // اعتماد وموافقة مالك المنصة على طبيب أو صيدلية أو مركز علاج طبيعي
 app.put('/api/admin/approve-entity', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { type, id } = req.body;
+    const { type, id, name, email, phone } = req.body;
     if (!type || !id) {
       return res.status(400).json({ error: 'النوع (type) والمعرف (id) مطلوبان' });
     }
 
-    let entityName = '';
+    let entityName = name || '';
     if (type === 'DOCTOR') {
-      const doc = await Doctor.findByPk(id);
-      if (!doc) return res.status(404).json({ error: 'الطبيب غير موجود' });
-      doc.verification_status = 'VERIFIED';
-      if (doc.subscription_status === 'PENDING_PAYMENT') {
-        doc.subscription_status = 'PAID';
+      let doc = await Doctor.findByPk(id);
+      if (!doc) doc = await Doctor.findOne({ where: { user_id: id } });
+      if (!doc && email) {
+        const u = await User.findOne({ where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) });
+        if (u) doc = await Doctor.findOne({ where: { user_id: u.id } });
       }
-      await doc.save();
-      entityName = doc.name;
+      if (!doc && phone) {
+        doc = await Doctor.findOne({ where: { phone: String(phone).trim() } });
+      }
+      if (!doc && name) {
+        doc = await Doctor.findOne({ where: { name: String(name).trim() } });
+      }
+
+      if (doc) {
+        doc.verification_status = 'VERIFIED';
+        if (doc.subscription_status === 'PENDING_PAYMENT') {
+          doc.subscription_status = 'PAID';
+        }
+        await doc.save();
+        entityName = doc.name;
+        if (doc.user_id) {
+          await User.update({ role: 'DOCTOR' }, { where: { id: doc.user_id } }).catch(() => null);
+        }
+      } else {
+        entityName = name || 'الطبيب';
+      }
     } else if (type === 'PHARMACY') {
-      const ph = await Pharmacy.findByPk(id);
-      if (!ph) return res.status(404).json({ error: 'الصيدلية غير موجودة' });
-      ph.verification_status = 'VERIFIED';
-      await ph.save();
-      entityName = ph.name;
+      let ph = await Pharmacy.findByPk(id);
+      if (!ph) ph = await Pharmacy.findOne({ where: { user_id: id } });
+      if (!ph && email) {
+        const u = await User.findOne({ where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) });
+        if (u) ph = await Pharmacy.findOne({ where: { user_id: u.id } });
+      }
+      if (!ph && phone) ph = await Pharmacy.findOne({ where: { phone: String(phone).trim() } });
+      if (!ph && name) ph = await Pharmacy.findOne({ where: { name: String(name).trim() } });
+
+      if (ph) {
+        ph.verification_status = 'VERIFIED';
+        await ph.save();
+        entityName = ph.name;
+        if (ph.user_id) {
+          await User.update({ role: 'PHARMACY' }, { where: { id: ph.user_id } }).catch(() => null);
+        }
+      } else {
+        entityName = name || 'الصيدلية';
+      }
     } else if (type === 'THERAPY_CENTER') {
-      const tc = await TherapyCenter.findByPk(id);
-      if (!tc) return res.status(404).json({ error: 'مركز العلاج الطبيعي غير موجود' });
-      tc.verification_status = 'VERIFIED';
-      await tc.save();
-      entityName = tc.name;
+      let tc = await TherapyCenter.findByPk(id);
+      if (!tc) tc = await TherapyCenter.findOne({ where: { user_id: id } });
+      if (!tc && email) {
+        const u = await User.findOne({ where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) });
+        if (u) tc = await TherapyCenter.findOne({ where: { user_id: u.id } });
+      }
+      if (!tc && phone) tc = await TherapyCenter.findOne({ where: { phone: String(phone).trim() } });
+      if (!tc && name) tc = await TherapyCenter.findOne({ where: { name: String(name).trim() } });
+
+      if (tc) {
+        tc.verification_status = 'VERIFIED';
+        await tc.save();
+        entityName = tc.name;
+        if (tc.user_id) {
+          await User.update({ role: 'THERAPY_CENTER' }, { where: { id: tc.user_id } }).catch(() => null);
+        }
+      } else {
+        entityName = name || 'مركز العلاج الطبيعي';
+      }
     } else {
       return res.status(400).json({ error: 'نوع غير مدعوم' });
     }
@@ -2831,30 +2946,67 @@ app.put('/api/admin/approve-entity', authenticate, requireAdmin, async (req, res
 // رفض طلب انضمام جهة بواسطة مالك المنصة
 app.put('/api/admin/reject-entity', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { type, id, reason } = req.body;
+    const { type, id, reason, name, email, phone } = req.body;
     if (!type || !id) {
       return res.status(400).json({ error: 'النوع (type) والمعرف (id) مطلوبان' });
     }
 
-    let entityName = '';
+    let entityName = name || '';
     if (type === 'DOCTOR') {
-      const doc = await Doctor.findByPk(id);
-      if (!doc) return res.status(404).json({ error: 'الطبيب غير موجود' });
-      doc.verification_status = 'REJECTED';
-      await doc.save();
-      entityName = doc.name;
+      let doc = await Doctor.findByPk(id);
+      if (!doc) doc = await Doctor.findOne({ where: { user_id: id } });
+      if (!doc && email) {
+        const u = await User.findOne({ where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) });
+        if (u) doc = await Doctor.findOne({ where: { user_id: u.id } });
+      }
+      if (!doc && phone) {
+        doc = await Doctor.findOne({ where: { phone: String(phone).trim() } });
+      }
+      if (!doc && name) {
+        doc = await Doctor.findOne({ where: { name: String(name).trim() } });
+      }
+
+      if (doc) {
+        doc.verification_status = 'REJECTED';
+        await doc.save();
+        entityName = doc.name;
+      } else {
+        entityName = name || 'الطبيب';
+      }
     } else if (type === 'PHARMACY') {
-      const ph = await Pharmacy.findByPk(id);
-      if (!ph) return res.status(404).json({ error: 'الصيدلية غير موجودة' });
-      ph.verification_status = 'REJECTED';
-      await ph.save();
-      entityName = ph.name;
+      let ph = await Pharmacy.findByPk(id);
+      if (!ph) ph = await Pharmacy.findOne({ where: { user_id: id } });
+      if (!ph && email) {
+        const u = await User.findOne({ where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) });
+        if (u) ph = await Pharmacy.findOne({ where: { user_id: u.id } });
+      }
+      if (!ph && phone) ph = await Pharmacy.findOne({ where: { phone: String(phone).trim() } });
+      if (!ph && name) ph = await Pharmacy.findOne({ where: { name: String(name).trim() } });
+
+      if (ph) {
+        ph.verification_status = 'REJECTED';
+        await ph.save();
+        entityName = ph.name;
+      } else {
+        entityName = name || 'الصيدلية';
+      }
     } else if (type === 'THERAPY_CENTER') {
-      const tc = await TherapyCenter.findByPk(id);
-      if (!tc) return res.status(404).json({ error: 'مركز العلاج الطبيعي غير موجود' });
-      tc.verification_status = 'REJECTED';
-      await tc.save();
-      entityName = tc.name;
+      let tc = await TherapyCenter.findByPk(id);
+      if (!tc) tc = await TherapyCenter.findOne({ where: { user_id: id } });
+      if (!tc && email) {
+        const u = await User.findOne({ where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) });
+        if (u) tc = await TherapyCenter.findOne({ where: { user_id: u.id } });
+      }
+      if (!tc && phone) tc = await TherapyCenter.findOne({ where: { phone: String(phone).trim() } });
+      if (!tc && name) tc = await TherapyCenter.findOne({ where: { name: String(name).trim() } });
+
+      if (tc) {
+        tc.verification_status = 'REJECTED';
+        await tc.save();
+        entityName = tc.name;
+      } else {
+        entityName = name || 'مركز العلاج الطبيعي';
+      }
     } else {
       return res.status(400).json({ error: 'نوع غير مدعوم' });
     }
@@ -2865,6 +3017,100 @@ app.put('/api/admin/reject-entity', authenticate, requireAdmin, async (req, res)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --- حذف الحساب نهائياً مع حماية وقفل مالي (Financial Lock) ---
+app.delete('/api/auth/delete-account', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const userEmail = (req.user.email || '').toLowerCase().trim();
+
+    // حماية حساب الأدمن والمالك العام من الحذف
+    if (userRole === 'ADMIN' || userEmail === 'hayat.healthcare3@gmail.com' || userEmail === 'hayathealthcare3@gmail.com' || userEmail === 'admin@hayaa.com') {
+      return res.status(403).json({ error: 'لا يمكن حذف حساب الإدارة العامة والمالك للمنصة.' });
+    }
+
+    // إذا كان الحساب لطبيب: فحص الأرصدة والمستحقات المالية في المحفظة
+    let doctor = await Doctor.findOne({ where: { user_id: userId } });
+    if (!doctor) doctor = await Doctor.findOne({ where: { name: req.user.name } });
+
+    if (doctor) {
+      // 1. حساب إجمالي الأرباح من الكشوفات المسددة
+      const paidAppointments = await Appointment.findAll({
+        where: { doctor_id: doctor.id, paid: true }
+      });
+      let totalEarnings = 0;
+      paidAppointments.forEach(appt => {
+        totalEarnings += parseInt(appt.doctor_fee) || 150;
+      });
+
+      // 2. حساب طلبات السحب المعلقة والمكتملة
+      const payouts = await PayoutRequest.findAll({
+        where: { doctor_id: doctor.id }
+      });
+      let pendingWithdrawals = 0;
+      let completedWithdrawals = 0;
+      payouts.forEach(p => {
+        if (p.status === 'PENDING') pendingWithdrawals += Number(p.amount);
+        else if (p.status === 'COMPLETED') completedWithdrawals += Number(p.amount);
+      });
+
+      const availableBalance = Math.max(0, totalEarnings - (pendingWithdrawals + completedWithdrawals));
+
+      // إذا كان هناك رصيد لم يُسحب
+      if (availableBalance > 0) {
+        return res.status(400).json({
+          error: `لا يمكن حذف الحساب نظراً لوجود رصيد مالي مستحق قدره (${availableBalance} ج.م) في محفظتك. يرجى سحب وتسوية كامل مستحقاتك المالية أولاً قبل إغلاق الحساب.`
+        });
+      }
+
+      // إذا كانت هناك طلبات سحب قيد الانتظار لم تُنفذ بعد
+      if (pendingWithdrawals > 0) {
+        return res.status(400).json({
+          error: `لا يمكن حذف الحساب نظراً لوجود طلبات سحب أرباح قيد المراجعة والتحويل قدرها (${pendingWithdrawals} ج.م). يرجى الانتظار حتى اكتمال التحويل أولاً.`
+        });
+      }
+
+      // حذف جداول مواعيد عيادات الطبيب والتقييمات وطلبات السحب وسجل الطبيب
+      await ClinicSchedule.destroy({ where: { doctor_id: doctor.id } }).catch(() => null);
+      await Review.destroy({ where: { doctor_id: doctor.id } }).catch(() => null);
+      await PayoutRequest.destroy({ where: { doctor_id: doctor.id } }).catch(() => null);
+      await Appointment.destroy({ where: { doctor_id: doctor.id } }).catch(() => null);
+      await doctor.destroy();
+    }
+
+    // إذا كانت صيدلية
+    const pharmacy = await Pharmacy.findOne({ where: { user_id: userId } });
+    if (pharmacy) {
+      await Order.destroy({ where: { pharmacy_id: pharmacy.id } }).catch(() => null);
+      await pharmacy.destroy();
+    }
+
+    // إذا كان مركز علاج طبيعي
+    const tc = await TherapyCenter.findOne({ where: { user_id: userId } });
+    if (tc) {
+      await TherapyBranch.destroy({ where: { center_id: tc.id } }).catch(() => null);
+      await tc.destroy();
+    }
+
+    // حذف سجلات المستخدم العامة
+    await Appointment.destroy({ where: { user_id: userId } }).catch(() => null);
+    await Prescription.destroy({ where: { user_id: userId } }).catch(() => null);
+    await Review.destroy({ where: { user_id: userId } }).catch(() => null);
+    await Complaint.destroy({ where: { user_id: userId } }).catch(() => null);
+
+    // وأخيراً حذف المستخدم نفسه
+    await User.destroy({ where: { id: userId } });
+
+    res.json({
+      success: true,
+      message: '✅ تم حذف الحساب نهائياً وكافة البيانات وسجلات الكشوفات المرتبطة به بنجاح.'
+    });
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء محاولة حذف الحساب: ' + err.message });
   }
 });
 

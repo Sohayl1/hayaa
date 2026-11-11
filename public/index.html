@@ -53,6 +53,7 @@
       getDoc,
       doc, 
       setDoc, 
+      deleteDoc,
       query, 
       orderBy, 
       limit, 
@@ -82,6 +83,9 @@
     window.firebaseAuth = auth;
     window.firebaseDb = db;
     window.googleProvider = provider;
+    window.fbSignOut = fbSignOut;
+    window.deleteDoc = deleteDoc;
+    window.doc = doc;
     window.sendPasswordResetEmail = sendPasswordResetEmail;
 
     // تسجيل الدخول السريع عبر Google (Google Sign-In)
@@ -97,6 +101,11 @@
       });
 
       try {
+        // تفريغ أي جلسة مصغرة سابقة لضمان ظهور شاشة اختيار الحساب دائماً
+        if (auth.currentUser) {
+          try { await fbSignOut(auth); } catch(e){}
+        }
+
         const result = await signInWithPopup(auth, provider);
         const fbUser = result.user;
         if (!fbUser) return;
@@ -107,8 +116,8 @@
           emLower === 'hayat.healthcare3@gmail.com' ||
           emLower === 'hayathealthcare3@gmail.com' ||
           emNoDots === 'hayathealthcare3@gmailcom' ||
-          emLower.includes('admin') ||
-          emLower === 'admin@hayaa.com'
+          emLower === 'admin@hayaa.com' ||
+          emLower === 'admin@hayat.com'
         );
 
         // استرجاع البروفايل المحفوظ مسبقاً من التخزين المحلي الدائم إن وجد
@@ -154,16 +163,8 @@
           token = data.token;
           currentUser = data.user;
         } else {
-          token = 'gh_google_jwt_' + Date.now();
-          currentUser = {
-            id: fbUser.uid,
-            name: fbUser.displayName || (isAdminUser ? 'المدير العام والمالك (Super Admin)' : 'مستخدم Google'),
-            email: fbUser.email,
-            phone: knownPhone,
-            role: isAdminUser ? 'ADMIN' : (data.user?.role || (typeof currentAuthRole !== 'undefined' ? currentAuthRole : 'PATIENT')),
-            governorate: knownGov,
-            photoUrl: fbUser.photoURL || ''
-          };
+          alert('❌ تعذر إتمام تسجيل الدخول عبر الخادم: ' + (data.error || 'يرجى المحاولة مرة أخرى لاحقاً'));
+          return;
         }
 
         // حساب الأدمن دائماً وأبداً دوره ADMIN بدون أدنى شك
@@ -3307,6 +3308,14 @@
             <span>تسجيل الخروج من الحساب</span>
           </button>
 
+          <!-- 6. حذف الحساب نهائياً (Danger Zone) -->
+          <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #cbd5e1; text-align:center;">
+            <button type="button" onclick="confirmDeleteAccount()" style="background:transparent; border:none; color:#dc2626; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; gap:6px; opacity:0.85; transition:all 0.2s;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              <span>حذف الحساب نهائياً 🗑️</span>
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
@@ -3652,39 +3661,45 @@
             <div class="section-title-bar"></div>
             الأطباء المتاحون للاستشارة
           </div>
-          <div style="display:inline-flex; align-items:center; gap:8px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:12px; padding:6px 14px;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span style="font-size:13px; font-weight:700; color:#0b1e33;">المحافظة:</span>
-            <select id="docFilterGov" onchange="filterDoctors()" style="border:none; background:transparent; font-size:13px; font-weight:700; color:#0284c7; outline:none; cursor:pointer; font-family:inherit;">
-              <option value="">جميع محافظات مصر</option>
-              <option value="القاهرة">القاهرة</option>
-              <option value="الجيزة">الجيزة</option>
-              <option value="الإسكندرية">الإسكندرية</option>
-              <option value="القليوبية">القليوبية</option>
-              <option value="الدقهلية">الدقهلية (المنصورة)</option>
-              <option value="الشرقية">الشرقية (الزقازيق)</option>
-              <option value="الغربية">الغربية (طنطا)</option>
-              <option value="المنوفية">المنوفية (شبين الكوم)</option>
-              <option value="البحيرة">البحيرة (دمنهور)</option>
-              <option value="كفر الشيخ">كفر الشيخ</option>
-              <option value="دمياط">دمياط</option>
-              <option value="بورسعيد">بورسعيد</option>
-              <option value="الإسماعيلية">الإسماعيلية</option>
-              <option value="السويس">السويس</option>
-              <option value="الفيوم">الفيوم</option>
-              <option value="بني سويف">بني سويف</option>
-              <option value="المنيا">المنيا</option>
-              <option value="أسيوط">أسيوط</option>
-              <option value="سوهاج">سوهاج</option>
-              <option value="قنا">قنا</option>
-              <option value="الأقصر">الأقصر</option>
-              <option value="أسوان">أسوان</option>
-              <option value="البحر الأحمر">البحر الأحمر (الغردقة)</option>
-              <option value="مطروح">مطروح</option>
-              <option value="شمال سيناء">شمال سيناء</option>
-              <option value="جنوب سيناء">جنوب سيناء (شرم الشيخ)</option>
-              <option value="الوادي الجديد">الوادي الجديد</option>
-            </select>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div style="display:inline-flex; align-items:center; gap:8px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:12px; padding:6px 14px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span style="font-size:13px; font-weight:700; color:#0b1e33;">المحافظة:</span>
+              <select id="docFilterGov" onchange="filterDoctors()" style="border:none; background:transparent; font-size:13px; font-weight:700; color:#0284c7; outline:none; cursor:pointer; font-family:inherit;">
+                <option value="">جميع محافظات مصر</option>
+                <option value="القاهرة">القاهرة</option>
+                <option value="الجيزة">الجيزة</option>
+                <option value="الإسكندرية">الإسكندرية</option>
+                <option value="القليوبية">القليوبية</option>
+                <option value="الدقهلية">الدقهلية (المنصورة)</option>
+                <option value="الشرقية">الشرقية (الزقازيق)</option>
+                <option value="الغربية">الغربية (طنطا)</option>
+                <option value="المنوفية">المنوفية (شبين الكوم)</option>
+                <option value="البحيرة">البحيرة (دمنهور)</option>
+                <option value="كفر الشيخ">كفر الشيخ</option>
+                <option value="دمياط">دمياط</option>
+                <option value="بورسعيد">بورسعيد</option>
+                <option value="الإسماعيلية">الإسماعيلية</option>
+                <option value="السويس">السويس</option>
+                <option value="الفيوم">الفيوم</option>
+                <option value="بني سويف">بني سويف</option>
+                <option value="المنيا">المنيا</option>
+                <option value="أسيوط">أسيوط</option>
+                <option value="سوهاج">سوهاج</option>
+                <option value="قنا">قنا</option>
+                <option value="الأقصر">الأقصر</option>
+                <option value="أسوان">أسوان</option>
+                <option value="البحر الأحمر">البحر الأحمر (الغردقة)</option>
+                <option value="مطروح">مطروح</option>
+                <option value="شمال سيناء">شمال سيناء</option>
+                <option value="جنوب سيناء">جنوب سيناء (شرم الشيخ)</option>
+                <option value="الوادي الجديد">الوادي الجديد</option>
+              </select>
+            </div>
+
+            <div style="position:relative; min-width:220px;">
+              <input type="text" id="docSearchInput" oninput="debounceDoctorSearch()" placeholder="🔍 ابحث باسم الطبيب أو العيادة..." style="width:100%; box-sizing:border-box; padding:8px 32px 8px 12px; border:1.5px solid #cbd5e1; border-radius:12px; font-size:12.5px; font-family:inherit; outline:none; background:#f8fafc;">
+            </div>
           </div>
         </div>
         <div class="filter-pills" id="specialtyFilters" style="display:flex; flex-wrap:wrap; gap:8px;">
@@ -7266,8 +7281,13 @@
       window.currentUser = null;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (window.firebaseAuth && typeof window.firebaseAuth.signOut === 'function') {
-        try { window.firebaseAuth.signOut(); } catch(e){}
+      currentAuthRole = 'PATIENT';
+      if (window.firebaseAuth) {
+        if (typeof window.fbSignOut === 'function') {
+          try { window.fbSignOut(window.firebaseAuth); } catch(e){}
+        } else if (typeof window.firebaseAuth.signOut === 'function') {
+          try { window.firebaseAuth.signOut(); } catch(e){}
+        }
       }
       showLanding();
     }
@@ -8004,9 +8024,52 @@
       filterDoctors();
     }
 
+    let docSearchTimeout;
+    function debounceDoctorSearch() {
+      clearTimeout(docSearchTimeout);
+      docSearchTimeout = setTimeout(() => filterDoctors(), 350);
+    }
+
     function filterDoctors() {
       const gov = document.getElementById('docFilterGov')?.value || '';
-      loadDoctors(selectedSpecialtyFilter, gov);
+      const search = document.getElementById('docSearchInput')?.value || '';
+      loadDoctors(selectedSpecialtyFilter, gov, search);
+    }
+
+    async function confirmDeleteAccount() {
+      if (!confirm('⚠️ تحذير أمني شديد الأهمية:\nهل أنت متأكد تماماً من رغبتك في حذف حسابك نهائياً؟\nسيتم مسح جميع بياناتك وسجلاتك بالكامل ولا يمكن التراجع عن هذا الإجراء.\n\n(ملاحظة: إذا كان في حسابك رصيد مالي أو أرباح مستحقة، لن يتم الحذف حتى سحب وتسوية كامل مستحقاتك أولاً).')) {
+        return;
+      }
+
+      if (!token) {
+        alert('يرجى تسجيل الدخول أولاً');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/delete-account', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          if (currentUser && currentUser.id && window.deleteDoc && window.doc && window.firebaseDb) {
+            try {
+              await window.deleteDoc(window.doc(window.firebaseDb, "users", currentUser.id));
+            } catch(e){}
+          }
+          alert('✅ ' + (data.message || 'تم حذف الحساب نهائياً بنجاح.'));
+          logout();
+        } else {
+          alert('❌ تعذر إتمام حذف الحساب:\n' + (data.error || 'حدث خطأ غير متوقع.'));
+        }
+      } catch (err) {
+        alert('❌ خطأ في الاتصال بالخادم: ' + err.message);
+      }
     }
 
     
@@ -9359,10 +9422,10 @@
                 </div>
 
                 <div style="display:flex; gap:10px; justify-content:flex-end;">
-                  <button class="quick-test-btn" onclick="approveEntity('DOCTOR', '${doc.id}', '${doc.name.replace(/'/g, "\\'")}')" style="background:#10b981; color:white; border:none; padding:8px 18px; font-weight:800; font-size:12.5px;">
+                  <button class="quick-test-btn" onclick="approveEntity('DOCTOR', '${doc.id}', '${doc.name.replace(/'/g, "\\'")}', '${(doc.User?.email || doc.email || '').replace(/'/g, "\\'")}', '${(doc.phone || '').replace(/'/g, "\\'")}')" style="background:#10b981; color:white; border:none; padding:8px 18px; font-weight:800; font-size:12.5px;">
                     ✅ اعتماد وموافقة المالك
                   </button>
-                  <button class="btn-admin-del" onclick="rejectEntity('DOCTOR', '${doc.id}', '${doc.name.replace(/'/g, "\\'")}')" style="padding:8px 16px;">
+                  <button class="btn-admin-del" onclick="rejectEntity('DOCTOR', '${doc.id}', '${doc.name.replace(/'/g, "\\'")}', '${(doc.User?.email || doc.email || '').replace(/'/g, "\\'")}', '${(doc.phone || '').replace(/'/g, "\\'")}')" style="padding:8px 16px;">
                     ❌ رفض الطلب
                   </button>
                 </div>
@@ -9425,10 +9488,10 @@
                 </div>
 
                 <div style="display:flex; gap:10px; justify-content:flex-end;">
-                  <button class="quick-test-btn" onclick="approveEntity('PHARMACY', '${ph.id}', '${ph.name.replace(/'/g, "\\'")}')" style="background:#10b981; color:white; border:none; padding:8px 18px; font-weight:800; font-size:12.5px;">
+                  <button class="quick-test-btn" onclick="approveEntity('PHARMACY', '${ph.id}', '${ph.name.replace(/'/g, "\\'")}', '${(ph.User?.email || ph.email || '').replace(/'/g, "\\'")}', '${(ph.phone || '').replace(/'/g, "\\'")}')" style="background:#10b981; color:white; border:none; padding:8px 18px; font-weight:800; font-size:12.5px;">
                     ✅ اعتماد وموافقة المالك
                   </button>
-                  <button class="btn-admin-del" onclick="rejectEntity('PHARMACY', '${ph.id}', '${ph.name.replace(/'/g, "\\'")}')" style="padding:8px 16px;">
+                  <button class="btn-admin-del" onclick="rejectEntity('PHARMACY', '${ph.id}', '${ph.name.replace(/'/g, "\\'")}', '${(ph.User?.email || ph.email || '').replace(/'/g, "\\'")}', '${(ph.phone || '').replace(/'/g, "\\'")}')" style="padding:8px 16px;">
                     ❌ رفض الطلب
                   </button>
                 </div>
@@ -9492,10 +9555,10 @@
                 </div>
 
                 <div style="display:flex; gap:10px; justify-content:flex-end;">
-                  <button class="quick-test-btn" onclick="approveEntity('THERAPY_CENTER', '${tc.id}', '${tc.name.replace(/'/g, "\\'")}')" style="background:#10b981; color:white; border:none; padding:8px 18px; font-weight:800; font-size:12.5px;">
+                  <button class="quick-test-btn" onclick="approveEntity('THERAPY_CENTER', '${tc.id}', '${tc.name.replace(/'/g, "\\'")}', '${(tc.User?.email || tc.email || '').replace(/'/g, "\\'")}', '${(tc.phone || '').replace(/'/g, "\\'")}')" style="background:#10b981; color:white; border:none; padding:8px 18px; font-weight:800; font-size:12.5px;">
                     ✅ اعتماد وموافقة المالك
                   </button>
-                  <button class="btn-admin-del" onclick="rejectEntity('THERAPY_CENTER', '${tc.id}', '${tc.name.replace(/'/g, "\\'")}')" style="padding:8px 16px;">
+                  <button class="btn-admin-del" onclick="rejectEntity('THERAPY_CENTER', '${tc.id}', '${tc.name.replace(/'/g, "\\'")}', '${(tc.User?.email || tc.email || '').replace(/'/g, "\\'")}', '${(tc.phone || '').replace(/'/g, "\\'")}')" style="padding:8px 16px;">
                     ❌ رفض الطلب
                   </button>
                 </div>
@@ -9510,7 +9573,7 @@
       }
     }
 
-    async function approveEntity(type, id, name) {
+    async function approveEntity(type, id, name, email = '', phone = '') {
       if (!confirm(`هل أنت متأكد من الموافقة واعتماد (${name})؟\nسيصبح الحساب فعالاً وسيظهر مباشرة في المنصة للجمهور والمرضى.`)) {
         return;
       }
@@ -9518,10 +9581,21 @@
         const res = await fetch('/api/admin/approve-entity', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ type, id })
+          body: JSON.stringify({ type, id, name, email, phone })
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          // مسح الطلب أو تحديثه في فايرستور إن وجد
+          if (window.firebaseDb && window.deleteDoc && window.doc) {
+            try { await window.deleteDoc(window.doc(window.firebaseDb, "pending_verifications", id)); } catch(e){}
+          }
+          // مسح من التخزين المحلي الاحتياطي
+          try {
+            let localPending = JSON.parse(localStorage.getItem('haya_local_pending_verifications') || '[]');
+            localPending = localPending.filter(lp => lp.id !== id && (!email || lp.email !== email) && lp.name !== name);
+            localStorage.setItem('haya_local_pending_verifications', JSON.stringify(localPending));
+          } catch(e){}
+
           alert('🎉 ' + data.message);
           loadAdminVerifications();
           loadAdminOverview();
@@ -9536,7 +9610,7 @@
       }
     }
 
-    async function rejectEntity(type, id, name) {
+    async function rejectEntity(type, id, name, email = '', phone = '') {
       const reason = prompt(`يرجى كتابة سبب رفض طلب (${name}):`, 'مستندات غير مكتملة أو غير واضحة');
       if (reason === null) return;
 
@@ -9544,10 +9618,21 @@
         const res = await fetch('/api/admin/reject-entity', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ type, id, reason })
+          body: JSON.stringify({ type, id, reason, name, email, phone })
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          // مسح الطلب من فايرستور إن وجد
+          if (window.firebaseDb && window.deleteDoc && window.doc) {
+            try { await window.deleteDoc(window.doc(window.firebaseDb, "pending_verifications", id)); } catch(e){}
+          }
+          // مسح من التخزين المحلي الاحتياطي
+          try {
+            let localPending = JSON.parse(localStorage.getItem('haya_local_pending_verifications') || '[]');
+            localPending = localPending.filter(lp => lp.id !== id && (!email || lp.email !== email) && lp.name !== name);
+            localStorage.setItem('haya_local_pending_verifications', JSON.stringify(localPending));
+          } catch(e){}
+
           alert(data.message);
           loadAdminVerifications();
           loadAdminOverview();
@@ -11023,7 +11108,7 @@
       return days[new Date().getDay()];
     }
 
-    async function loadClinics() {
+    async function loadClinics(governorate = '') {
       const container = document.getElementById('clinicsListContainer');
       if (!container) return;
 
@@ -11031,11 +11116,16 @@
         const res = await fetch('/api/clinics');
         allClinics = await res.json();
 
-        if (!allClinics.length) {
+        let displayedClinics = allClinics;
+        if (governorate && governorate.trim()) {
+          displayedClinics = allClinics.filter(c => c.governorate === governorate.trim());
+        }
+
+        if (!displayedClinics.length) {
           container.innerHTML = `
             <div style="text-align:center; padding:24px; color:#64748b; background:white; border-radius:14px; border:1px dashed #cbd5e1;">
               <span style="font-size:32px; display:block; margin-bottom:6px;">🏥</span>
-              <strong style="color:#0b1e33;">لا توجد مجمعات عيادات معروضة حالياً</strong>
+              <strong style="color:#0b1e33;">لا توجد مجمعات عيادات معروضة ${governorate ? `في محافظة ${governorate}` : ''} حالياً</strong>
               <p style="font-size:12px; margin:4px 0 0 0; color:#64748b;">يرجى مراجعة المنصة لاحقاً للاطلاع على مواعيد العيادات المحدثة.</p>
             </div>
           `;
@@ -11045,7 +11135,7 @@
         const today = getTodayArabicDay();
         const daysOrder = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 
-        container.innerHTML = allClinics.map(clinic => {
+        container.innerHTML = displayedClinics.map(clinic => {
           if (!clinicSelectedDays[clinic.id]) {
             clinicSelectedDays[clinic.id] = today;
           }
@@ -11759,13 +11849,14 @@
       `).join('');
     }
 
-    async function loadDoctors(specialty = '', governorate = '') {
-      loadClinics();
+    async function loadDoctors(specialty = '', governorate = '', search = '') {
+      loadClinics(governorate);
       const container = document.getElementById('doctorsList');
       try {
         const params = new URLSearchParams();
         if (specialty) params.append('specialty', specialty);
         if (governorate) params.append('governorate', governorate);
+        if (search && search.trim()) params.append('search', search.trim());
         const queryStr = params.toString() ? `?${params.toString()}` : '';
         const res = await fetch(`/api/doctors${queryStr}`);
         const doctors = await res.json();
@@ -11777,7 +11868,7 @@
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
   </div>
               <h4>لا يوجد أطباء متاحون</h4>
-              <p>لم نجد أطباء مسجلين يطابقون خيارات البحث حالياً، جرب اختيار تخصص أو محافظة أخرى.</p>
+              <p>لم نجد أطباء مسجلين يطابقون خيارات البحث حالياً، جرب اختيار تخصص أو محافظة أخرى أو تغيير كلمة البحث.</p>
             </div>
           `;
           return;
@@ -11895,9 +11986,27 @@
         }).join('');
       } catch (err) {
         console.warn('loadDoctors error, using resilient fallback:', err);
-        let fallbackDocs = (typeof SEED_FALLBACK_DOCTORS !== 'undefined' && Array.isArray(SEED_FALLBACK_DOCTORS)) ? SEED_FALLBACK_DOCTORS : [];
-        if (specialty) fallbackDocs = fallbackDocs.filter(d => d.specialty === specialty);
-        if (governorate) fallbackDocs = fallbackDocs.filter(d => d.governorate === governorate);
+        let fallbackDocs = (typeof SEED_FALLBACK_DOCTORS !== 'undefined' && Array.isArray(SEED_FALLBACK_DOCTORS)) ? [...SEED_FALLBACK_DOCTORS] : [];
+        if (specialty) {
+          const specMap = {
+            cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب'],
+            ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام'],
+            therapy: ['therapy', 'physio', 'physical_therapy', 'علاج طبيعي'],
+            general: ['general', 'internal', 'طب عام', 'باطنة']
+          };
+          const allowed = specMap[specialty] || [specialty];
+          fallbackDocs = fallbackDocs.filter(d => allowed.includes(d.specialty));
+        }
+        if (governorate && governorate.trim()) fallbackDocs = fallbackDocs.filter(d => d.governorate === governorate.trim());
+        if (search && search.trim()) {
+          const q = search.trim().toLowerCase();
+          fallbackDocs = fallbackDocs.filter(d =>
+            (d.name && d.name.toLowerCase().includes(q)) ||
+            (d.clinic_name && d.clinic_name.toLowerCase().includes(q)) ||
+            (d.specialty && d.specialty.toLowerCase().includes(q)) ||
+            (d.bio && d.bio.toLowerCase().includes(q))
+          );
+        }
         if (fallbackDocs.length) {
           container.innerHTML = fallbackDocs.map(doc => {
             const docFee = doc.consultation_fee || 150;
