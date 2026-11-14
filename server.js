@@ -1468,12 +1468,11 @@ app.post('/api/auth/login', async (req, res) => {
       email === 'hayat.healthcare3@gmail.com' ||
       email === 'hayathealthcare3@gmail.com' ||
       cleanEmNoDots === 'hayathealthcare3@gmailcom' ||
-      email.includes('admin') ||
       email === 'admin@hayat.com' ||
       email === 'admin@hayaa.com' ||
       email === 'admin@haya.com' ||
       email === 'admin' ||
-      email === (process.env.ADMIN_EMAIL || '').toLowerCase()
+      (process.env.ADMIN_EMAIL && email === process.env.ADMIN_EMAIL.toLowerCase().trim())
     );
 
     let user;
@@ -1487,8 +1486,7 @@ app.post('/api/auth/login', async (req, res) => {
       const isValidAdminPass = (
         password === 'admin123' ||
         password === 'admin' ||
-        password === 'password123' ||
-        (user && (await bcrypt.compare(password, user.password)))
+        (user && user.password && (await bcrypt.compare(password, user.password).catch(() => false)))
       );
 
       if (!user) {
@@ -1504,7 +1502,7 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
       } else {
         // تحديث كلمة المرور لضمان تطابق التشفير دوماً
-        const isExactHash = await bcrypt.compare(password, user.password);
+        const isExactHash = await bcrypt.compare(password, user.password).catch(() => false);
         if (!isExactHash && (password === 'admin123' || password === 'admin')) {
           user.password = await bcrypt.hash('admin123', 10);
           await user.save();
@@ -1516,17 +1514,14 @@ app.post('/api/auth/login', async (req, res) => {
         where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), email)
       });
 
-      // دعم الحسابات التجريبية والدخول المباشر
-      const isDemoAdmin = (email === 'admin@hayaa.com' || email === 'admin') && (password === 'admin123' || password === 'password123');
+      // دعم الحسابات التجريبية المحددة بالباسوورد التجريبي فقط
       const isDemoDoctor = (email === 'doctor@example.com' || email === 'doctor') && password === 'password123';
       const isDemoPharmacy = (email === 'pharmacy@example.com' || email === 'pharmacy') && password === 'password123';
       const isDemoTherapy = (email === 'therapy@example.com' || email === 'therapy') && password === 'password123';
       const isDemoPatient = (email === 'patient@example.com' || email === 'patient') && password === 'password123';
 
       if (!user) {
-        if (isDemoAdmin) {
-          user = { id: 'admin_demo_1', name: 'المدير العام والمالك (Super Admin)', email: 'admin@hayaa.com', role: 'ADMIN', governorate: 'القاهرة' };
-        } else if (isDemoDoctor) {
+        if (isDemoDoctor) {
           user = { id: 'doctor_demo_1', name: 'د. سارة المنصور (طبيبة تجريبية)', email: 'doctor@example.com', role: 'DOCTOR', governorate: 'القاهرة' };
         } else if (isDemoPharmacy) {
           user = { id: 'c8ff9199-cfbc-40ad-9be8-928c24fa255f', name: 'صيدلية الشفاء المركزية (صيدلية تجريبية)', email: 'pharmacy@example.com', role: 'PHARMACY', governorate: 'القاهرة' };
@@ -1534,14 +1529,26 @@ app.post('/api/auth/login', async (req, res) => {
           user = { id: 'bbfb7a57-0177-4ee8-8c37-aa456b05eda6', name: 'مركز ريهاب بلس للتأهيل (مركز تجريبي)', email: 'therapy@example.com', role: 'THERAPY_CENTER', governorate: 'القاهرة' };
         } else if (isDemoPatient) {
           user = { id: 'patient_demo_1', name: 'أحمد محمود (مريض تجريبي)', email: 'patient@example.com', role: 'PATIENT', governorate: 'القاهرة' };
-        } else if (isMockDb) {
-          user = { id: 'user_' + Date.now(), name: email.split('@')[0], email: email, role: 'PATIENT', governorate: 'القاهرة' };
         } else {
           return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
         }
       } else {
-        const isMatch = (await bcrypt.compare(password, user.password).catch(() => false)) ||
-          isDemoAdmin || isDemoDoctor || isDemoPharmacy || isDemoTherapy || isDemoPatient || isMockDb;
+        // التحقق الفعلي من كلمة المرور المشفرة
+        let isMatch = false;
+        if (user.password) {
+          isMatch = await bcrypt.compare(password, user.password).catch(() => false);
+        }
+
+        // إذا كان الحساب مسجلاً عبر Google Auth
+        if (!isMatch && user.password && user.password.includes('GOOGLE_AUTH_')) {
+          return res.status(401).json({
+            error: 'هذا الحساب تم تسجيله عبر Google. يرجى الضغط على زر "المتابعة باستخدام Google" لتسجيل الدخول.'
+          });
+        }
+
+        if (!isMatch && (isDemoDoctor || isDemoPharmacy || isDemoTherapy || isDemoPatient)) {
+          isMatch = true;
+        }
 
         if (!isMatch) {
           return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
@@ -1958,17 +1965,18 @@ app.get('/api/doctors', async (req, res) => {
 
     // خريطة التخصصات ومترادفاتها الطبية
     const specMap = {
-      cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب'],
-      ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام'],
+      cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب', 'قلب وأوعية دموية'],
+      ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام', 'عظام ومفاصل'],
       therapy: ['therapy', 'physio', 'physical_therapy', 'علاج طبيعي', 'علاج طبيعي وتأهيل'],
       general: ['general', 'internal', 'طب عام', 'باطنة', 'طب عام وباطنة'],
       children: ['children', 'pediatric', 'أطفال', 'طب الأطفال'],
-      women: ['women', 'gynecology', 'نساء وتوليد'],
+      women: ['women', 'gynecology', 'نساء وتوليد', 'نساء'],
       eyes: ['eyes', 'ophthalmology', 'عيون', 'عيون وجراحة العيون'],
       ent: ['ent', 'أنف وأذن وحنجرة', 'أنف وأذن'],
       dental: ['dental', 'dentistry', 'أسنان', 'طب الأسنان'],
       derma: ['derma', 'dermatology', 'جلدية', 'جلدية وتجميل'],
-      psych: ['psych', 'psychiatry', 'نفسي', 'طب نفسي']
+      psych: ['psych', 'psychiatry', 'نفسي', 'طب نفسي'],
+      neuro: ['neuro', 'neurology', 'مخ وأعصاب', 'جراحة مخ وأعصاب', 'أعصاب']
     };
 
     if (specialty && specialty.trim()) {
@@ -1997,36 +2005,49 @@ app.get('/api/doctors', async (req, res) => {
     });
 
     if (!doctors || !doctors.length) {
-      doctors = Array.isArray(SEED_FALLBACK_DOCTORS) ? [...SEED_FALLBACK_DOCTORS] : [];
-      if (specialty && specialty.trim()) {
-        const cleanSpec = specialty.trim();
-        const allowed = specMap[cleanSpec] || [cleanSpec];
-        doctors = doctors.filter(d => allowed.includes(d.specialty));
-      }
-      if (governorate && governorate.trim()) {
-        doctors = doctors.filter(d => d.governorate === governorate.trim());
-      }
-      if (search && search.trim()) {
-        const q = search.trim().toLowerCase();
-        doctors = doctors.filter(d =>
-          (d.name && d.name.toLowerCase().includes(q)) ||
-          (d.clinic_name && d.clinic_name.toLowerCase().includes(q)) ||
-          (d.specialty && d.specialty.toLowerCase().includes(q)) ||
-          (d.bio && d.bio.toLowerCase().includes(q))
-        );
+      const totalVerifiedInDb = await Doctor.count({ where: { verification_status: 'VERIFIED' } }).catch(() => 0);
+      if (totalVerifiedInDb === 0) {
+        doctors = Array.isArray(SEED_FALLBACK_DOCTORS) ? [...SEED_FALLBACK_DOCTORS] : [];
+        if (specialty && specialty.trim()) {
+          const cleanSpec = specialty.trim();
+          const allowed = specMap[cleanSpec] || [cleanSpec];
+          doctors = doctors.filter(d => allowed.includes(d.specialty));
+        }
+        if (governorate && governorate.trim()) {
+          doctors = doctors.filter(d => d.governorate === governorate.trim());
+        }
+        if (search && search.trim()) {
+          const q = search.trim().toLowerCase();
+          doctors = doctors.filter(d =>
+            (d.name && d.name.toLowerCase().includes(q)) ||
+            (d.clinic_name && d.clinic_name.toLowerCase().includes(q)) ||
+            (d.specialty && d.specialty.toLowerCase().includes(q)) ||
+            (d.bio && d.bio.toLowerCase().includes(q))
+          );
+        }
+      } else {
+        doctors = [];
       }
     }
     res.json(doctors);
   } catch (err) {
     let docs = Array.isArray(SEED_FALLBACK_DOCTORS) ? [...SEED_FALLBACK_DOCTORS] : [];
+    const specMap = {
+      cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب', 'قلب وأوعية دموية'],
+      ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام', 'عظام ومفاصل'],
+      therapy: ['therapy', 'physio', 'physical_therapy', 'علاج طبيعي', 'علاج طبيعي وتأهيل'],
+      general: ['general', 'internal', 'طب عام', 'باطنة', 'طب عام وباطنة'],
+      children: ['children', 'pediatric', 'أطفال', 'طب الأطفال'],
+      women: ['women', 'gynecology', 'نساء وتوليد', 'نساء'],
+      eyes: ['eyes', 'ophthalmology', 'عيون', 'عيون وجراحة العيون'],
+      ent: ['ent', 'أنف وأذن وحنجرة', 'أنف وأذن'],
+      dental: ['dental', 'dentistry', 'أسنان', 'طب الأسنان'],
+      derma: ['derma', 'dermatology', 'جلدية', 'جلدية وتجميل'],
+      psych: ['psych', 'psychiatry', 'نفسي', 'طب نفسي'],
+      neuro: ['neuro', 'neurology', 'مخ وأعصاب', 'جراحة مخ وأعصاب', 'أعصاب']
+    };
     if (req.query.specialty && req.query.specialty.trim()) {
       const cleanSpec = req.query.specialty.trim();
-      const specMap = {
-        cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب'],
-        ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام'],
-        therapy: ['therapy', 'physio', 'physical_therapy', 'علاج طبيعي'],
-        general: ['general', 'internal', 'طب عام', 'باطنة']
-      };
       const allowed = specMap[cleanSpec] || [cleanSpec];
       docs = docs.filter(d => allowed.includes(d.specialty));
     }
@@ -2970,8 +2991,14 @@ app.put('/api/admin/reject-entity', authenticate, requireAdmin, async (req, res)
         doc.verification_status = 'REJECTED';
         await doc.save();
         entityName = doc.name;
+        if (doc.user_id) {
+          await User.update({ role: 'PATIENT' }, { where: { id: doc.user_id } }).catch(() => null);
+        }
       } else {
         entityName = name || 'الطبيب';
+      }
+      if (email) {
+        await User.update({ role: 'PATIENT' }, { where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) }).catch(() => null);
       }
     } else if (type === 'PHARMACY') {
       let ph = await Pharmacy.findByPk(id);
@@ -2987,8 +3014,14 @@ app.put('/api/admin/reject-entity', authenticate, requireAdmin, async (req, res)
         ph.verification_status = 'REJECTED';
         await ph.save();
         entityName = ph.name;
+        if (ph.user_id) {
+          await User.update({ role: 'PATIENT' }, { where: { id: ph.user_id } }).catch(() => null);
+        }
       } else {
         entityName = name || 'الصيدلية';
+      }
+      if (email) {
+        await User.update({ role: 'PATIENT' }, { where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) }).catch(() => null);
       }
     } else if (type === 'THERAPY_CENTER') {
       let tc = await TherapyCenter.findByPk(id);
@@ -3004,8 +3037,14 @@ app.put('/api/admin/reject-entity', authenticate, requireAdmin, async (req, res)
         tc.verification_status = 'REJECTED';
         await tc.save();
         entityName = tc.name;
+        if (tc.user_id) {
+          await User.update({ role: 'PATIENT' }, { where: { id: tc.user_id } }).catch(() => null);
+        }
       } else {
         entityName = name || 'مركز العلاج الطبيعي';
+      }
+      if (email) {
+        await User.update({ role: 'PATIENT' }, { where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) }).catch(() => null);
       }
     } else {
       return res.status(400).json({ error: 'نوع غير مدعوم' });
@@ -3033,8 +3072,13 @@ app.delete('/api/auth/delete-account', authenticate, async (req, res) => {
     }
 
     // إذا كان الحساب لطبيب: فحص الأرصدة والمستحقات المالية في المحفظة
-    let doctor = await Doctor.findOne({ where: { user_id: userId } });
-    if (!doctor) doctor = await Doctor.findOne({ where: { name: req.user.name } });
+    let doctor = null;
+    if (userRole === 'DOCTOR') {
+      doctor = await Doctor.findOne({ where: { user_id: userId } });
+      if (!doctor && req.user.name) {
+        doctor = await Doctor.findOne({ where: { name: req.user.name } });
+      }
+    }
 
     if (doctor) {
       // 1. حساب إجمالي الأرباح من الكشوفات المسددة

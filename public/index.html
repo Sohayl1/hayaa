@@ -138,8 +138,8 @@
           }
         } catch(fsErr){}
 
-        const knownPhone = fsPhone || cachedProfile.phone || localStorage.getItem('haya_profile_last_phone') || '';
-        const knownGov = fsGov || cachedProfile.governorate || localStorage.getItem('haya_profile_last_gov') || 'القاهرة';
+        const knownPhone = fsPhone || cachedProfile.phone || '';
+        const knownGov = fsGov || cachedProfile.governorate || 'القاهرة';
 
         // إرسال طلب التوثيق وتسجيل الدخول للسيرفر مباشرة لتحديد الدور الفعلي الثابت للحساب من قاعدة البيانات
         const serverRes = await fetch('/api/auth/google-login', {
@@ -6273,7 +6273,79 @@
         }
 
         if (url.startsWith('/api/doctors')) {
-          return makeJsonRes(SEED_FALLBACK_DOCTORS);
+          let docs = Array.isArray(SEED_FALLBACK_DOCTORS) ? [...SEED_FALLBACK_DOCTORS] : [];
+          try {
+            const urlObj = new URL(urlStr, window.location.origin || 'https://hayathealthcare.online');
+            const specialty = urlObj.searchParams.get('specialty');
+            const governorate = urlObj.searchParams.get('governorate');
+            const search = urlObj.searchParams.get('search');
+
+            const specMap = {
+              cardio: ['cardio', 'heart', 'أمراض القلب', 'قلب', 'قلب وأوعية دموية'],
+              ortho: ['ortho', 'bones', 'عظام', 'جراحة العظام', 'عظام ومفاصل'],
+              therapy: ['therapy', 'physio', 'physical_therapy', 'علاج طبيعي', 'علاج طبيعي وتأهيل'],
+              general: ['general', 'internal', 'طب عام', 'باطنة', 'طب عام وباطنة'],
+              children: ['children', 'pediatric', 'أطفال', 'طب الأطفال'],
+              women: ['women', 'gynecology', 'نساء وتوليد', 'نساء'],
+              eyes: ['eyes', 'ophthalmology', 'عيون', 'عيون وجراحة العيون'],
+              ent: ['ent', 'أنف وأذن وحنجرة', 'أنف وأذن'],
+              dental: ['dental', 'dentistry', 'أسنان', 'طب الأسنان'],
+              derma: ['derma', 'dermatology', 'جلدية', 'جلدية وتجميل'],
+              psych: ['psych', 'psychiatry', 'نفسي', 'طب نفسي'],
+              neuro: ['neuro', 'neurology', 'مخ وأعصاب', 'جراحة مخ وأعصاب', 'أعصاب']
+            };
+
+            if (specialty && specialty.trim()) {
+              const allowed = specMap[specialty.trim()] || [specialty.trim()];
+              docs = docs.filter(d => allowed.includes(d.specialty));
+            }
+            if (governorate && governorate.trim()) {
+              docs = docs.filter(d => d.governorate === governorate.trim());
+            }
+            if (search && search.trim()) {
+              const q = search.trim().toLowerCase();
+              docs = docs.filter(d =>
+                (d.name && d.name.toLowerCase().includes(q)) ||
+                (d.clinic_name && d.clinic_name.toLowerCase().includes(q)) ||
+                (d.specialty && d.specialty.toLowerCase().includes(q)) ||
+                (d.bio && d.bio.toLowerCase().includes(q))
+              );
+            }
+          } catch(e) {}
+          return makeJsonRes(docs);
+        }
+
+        if (url.includes('/api/auth/delete-account') && method === 'DELETE') {
+          if (currentUser && currentUser.role === 'ADMIN') {
+            return makeJsonRes({ error: 'لا يمكن حذف حساب الإدارة العامة والمالك للمنصة.' }, 403);
+          }
+          let appointments = JSON.parse(localStorage.getItem('gh_appointments') || '[]');
+          const hasUnfinishedPaid = appointments.some(a => a.paid && a.status === 'CONFIRMED');
+          if (hasUnfinishedPaid) {
+            return makeJsonRes({
+              error: 'لا يمكن حذف الحساب نظراً لوجود حجوزات مؤكدة أو مستحقات مالية لم تكتمل تسويتها بعد.'
+            }, 400);
+          }
+          return makeJsonRes({
+            success: true,
+            message: '✅ تم حذف الحساب نهائياً وكافة البيانات المرتبطة به بنجاح.'
+          });
+        }
+
+        if (url.includes('/api/admin/reject-entity') && method === 'PUT') {
+          const entityName = bodyObj.name || 'الجهة';
+          return makeJsonRes({
+            success: true,
+            message: `❌ تم رفض طلب انضمام (${entityName}).`
+          });
+        }
+
+        if (url.includes('/api/admin/approve-entity') && method === 'PUT') {
+          const entityName = bodyObj.name || 'الجهة';
+          return makeJsonRes({
+            success: true,
+            message: `✅ تم اعتماد والموافقة رسمياً على (${entityName}) وأصبح متاحاً للجمهور في منصة حياه!`
+          });
         }
 
         if (url.startsWith('/api/clinics')) {
@@ -7166,59 +7238,19 @@
 
     async function handleLoginSubmit(e) {
       e.preventDefault();
-      let email = document.getElementById('loginEmail').value.trim();
-      let password = document.getElementById('loginPassword').value.trim();
-      
-      const emLower = (email || '').toLowerCase();
-      const emNoDots = emLower.replace(/\./g, '');
-      if (emLower.includes('admin') || emLower === 'hayat.healthcare3@gmail.com' || emLower === 'hayathealthcare3@gmail.com' || emNoDots === 'hayathealthcare3@gmailcom') {
-        currentAuthRole = 'ADMIN';
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+
+      if (!email || !password) {
+        alert('يرجى إدخال البريد الإلكتروني وكلمة المرور للمتابعة.');
+        return;
       }
 
-      if (currentAuthRole === 'ADMIN') {
-        if (!email) email = 'hayat.healthcare3@gmail.com';
-        if (!password) password = 'admin123';
-      } else if (currentAuthRole === 'PHARMACY') {
-        if (!email) email = 'pharmacy@example.com';
-        if (!password) password = 'password123';
-      } else if (currentAuthRole === 'THERAPY' || currentAuthRole === 'THERAPY_CENTER') {
-        if (!email) email = 'therapy@example.com';
-        if (!password) password = 'password123';
-      }
       const btn = document.getElementById('submitBtn');
-
       if (btn) {
-        btn.innerHTML = 'جاري التحقق...';
+        btn.innerHTML = '<span>جاري التحقق... ⏳</span>';
         btn.disabled = true;
       }
-
-      const applyFallback = () => {
-        let role = currentAuthRole || 'PATIENT';
-        const emLower = (email || '').toLowerCase();
-        if (emLower.includes('admin') || emLower === 'hayathealthcare3@gmail.com') role = 'ADMIN';
-        else if (emLower.includes('doctor') || emLower.includes('dr')) role = 'DOCTOR';
-        else if (emLower.includes('pharmacy')) role = 'PHARMACY';
-        else if (emLower.includes('therapy')) role = 'THERAPY_CENTER';
-
-        token = 'gh_fallback_jwt_' + Date.now();
-        currentUser = {
-          id: role === 'ADMIN' ? 'admin_1' : ('gh_user_' + Date.now()),
-          name: role === 'ADMIN' ? 'المدير العام والمالك (Super Admin)' : (email ? email.split('@')[0] : 'مستخدم معتمد'),
-          email: email || 'user@example.com',
-          phone: '01000000000',
-          role,
-          governorate: 'القاهرة'
-        };
-        window.token = token;
-        window.currentUser = currentUser;
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(currentUser));
-        if (typeof window.syncAppState === 'function') {
-          window.syncAppState(currentUser, token);
-        }
-        if (typeof closeRegisterModal === 'function') closeRegisterModal();
-        showDashboard();
-      };
 
       try {
         const res = await fetch('/api/auth/login', {
@@ -7227,7 +7259,7 @@
           body: JSON.stringify({ email, password })
         });
         const data = await res.json();
-        if (res.ok && data.token) {
+        if (res.ok && data.token && data.user) {
           token = data.token;
           currentUser = data.user;
           window.token = token;
@@ -7251,14 +7283,12 @@
           }
           if (typeof closeRegisterModal === 'function') closeRegisterModal();
           showDashboard();
-          return;
         } else {
-          console.warn('Server login returned error:', data.error);
-          applyFallback();
-          return;
+          alert('❌ ' + (data.error || 'البريد الإلكتروني أو كلمة المرور غير صحيحة'));
         }
       } catch (err) {
-        console.warn('Network login error, falling back locally:', err);
+        console.error('Login error:', err);
+        alert('❌ تعذر الاتصال بالخادم، يرجى التحقق من اتصال الإنترنت والمحاولة لاحقاً.');
       } finally {
         if (btn) {
           btn.innerHTML = `<span>تسجيل الدخول</span>
@@ -7269,8 +7299,6 @@
           btn.disabled = false;
         }
       }
-
-      applyFallback();
     }
 
     function logout() {

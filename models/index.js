@@ -181,6 +181,22 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
         try {
           fs.writeFileSync(filePath, JSON.stringify(records));
         } catch (e) {}
+      } else if (MODEL_SEEDS[modelName]) {
+        // ضمان تواجد الحسابات الأساسية والبذور الجديدة دائماً حتى عند وجود ملف تخزين مؤقت سابق
+        let added = false;
+        for (const sItem of MODEL_SEEDS[modelName]) {
+          const exists = records.some(r =>
+            (sItem.id && r.id === sItem.id) ||
+            (sItem.email && r.email && r.email.toLowerCase() === sItem.email.toLowerCase())
+          );
+          if (!exists) {
+            records.push(JSON.parse(JSON.stringify(sItem)));
+            added = true;
+          }
+        }
+        if (added) {
+          try { fs.writeFileSync(filePath, JSON.stringify(records)); } catch(e){}
+        }
       }
 
       inMemoryStores.set(modelName, records);
@@ -195,43 +211,126 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
       } catch (e) {}
     }
 
-    function matchWhere(item, where) {
-      if (!where || typeof where !== 'object') return true;
+    function extractValue(item, attr) {
+      if (!attr || !item) return undefined;
+      if (typeof attr === 'string') return item[attr];
+      if (attr.__isCol) return item[attr.col];
+      if (attr.__isFn) {
+        const rawVal = extractValue(item, attr.args && attr.args[0]);
+        if (attr.fn === 'lower') {
+          return String(rawVal ?? '').toLowerCase();
+        }
+        if (attr.fn === 'upper') {
+          return String(rawVal ?? '').toUpperCase();
+        }
+        return rawVal;
+      }
+      return undefined;
+    }
 
-      const symbols = Object.getOwnPropertySymbols(where);
+    function matchSingleWhere(item, whereObj) {
+      if (!whereObj || typeof whereObj !== 'object') return true;
+
+      // 1. إذا كان الكائن ناتجاً عن دالة sequelize.where(...)
+      if (whereObj.__isWhere) {
+        const itemVal = extractValue(item, whereObj.attribute);
+        const targetLogic = whereObj.logic;
+        const comparator = (whereObj.comparator || '=').toUpperCase();
+
+        if (targetLogic && typeof targetLogic === 'object') {
+          const syms = Object.getOwnPropertySymbols(targetLogic);
+          for (const s of syms) {
+            const sStr = s.toString();
+            if (sStr.includes('like') || sStr.includes('iLike')) {
+              const pattern = String(targetLogic[s]).replace(/%/g, '').toLowerCase();
+              return String(itemVal ?? '').toLowerCase().includes(pattern);
+            }
+          }
+        }
+
+        if (comparator === 'LIKE' || comparator === 'ILIKE') {
+          const pattern = String(targetLogic).replace(/%/g, '').toLowerCase();
+          return String(itemVal ?? '').toLowerCase().includes(pattern);
+        }
+
+        if (typeof itemVal === 'string' && typeof targetLogic === 'string') {
+          return itemVal.toLowerCase().trim() === targetLogic.toLowerCase().trim();
+        }
+        return itemVal == targetLogic;
+      }
+
+      // 2. معالجة العمليات المركبة بالرموز (Op.or, Op.and)
+      const symbols = Object.getOwnPropertySymbols(whereObj);
       for (const sym of symbols) {
-        if (sym.toString().includes('or')) {
-          const orList = where[sym];
-          if (Array.isArray(orList)) {
-            const matchesAny = orList.some(subWhere => matchWhere(item, subWhere));
+        const symStr = sym.toString();
+        if (symStr.includes('or')) {
+          const orList = whereObj[sym];
+          if (Array.isArray(orList) && orList.length > 0) {
+            const matchesAny = orList.some(subWhere => matchSingleWhere(item, subWhere));
             if (!matchesAny) return false;
+          }
+        } else if (symStr.includes('and')) {
+          const andList = whereObj[sym];
+          if (Array.isArray(andList)) {
+            const matchesAll = andList.every(subWhere => matchSingleWhere(item, subWhere));
+            if (!matchesAll) return false;
           }
         }
       }
 
-      for (const key of Object.keys(where)) {
-        const targetVal = where[key];
+      // 3. معالجة خصائص الكائن العادية
+      for (const key of Object.keys(whereObj)) {
+        if (key === '__isWhere' || key === 'attribute' || key === 'comparator' || key === 'logic') continue;
+        const targetVal = whereObj[key];
         if (targetVal === undefined) continue;
+
+        if (targetVal && typeof targetVal === 'object' && targetVal.__isWhere) {
+          if (!matchSingleWhere(item, targetVal)) return false;
+          continue;
+        }
+
         const itemVal = item[key];
 
-        if (targetVal && typeof targetVal === 'object') {
-          const subSyms = Object.getOwnPropertySymbols(targetVal);
-          let isLike = false;
-          for (const ss of subSyms) {
-            if (ss.toString().includes('like')) {
-              isLike = true;
-              const pattern = String(targetVal[ss]).replace(/%/g, '').toLowerCase();
-              if (!String(itemVal || '').toLowerCase().includes(pattern)) {
-                return false;
-              }
+        if (targetVal && typeof targetVal === 'object' && !Array.isArray(targetVal)) {
+          const targetSyms = Object.getOwnPropertySymbols(targetVal);
+          let handledSym = false;
+          for (const ts of targetSyms) {
+            const tsStr = ts.toString();
+            if (tsStr.includes('like') || tsStr.includes('iLike')) {
+              handledSym = true;
+              const pattern = String(targetVal[ts]).replace(/%/g, '').toLowerCase();
+              if (!String(itemVal ?? '').toLowerCase().includes(pattern)) return false;
+            } else if (tsStr.includes('notIn')) {
+              handledSym = true;
+              const list = Array.isArray(targetVal[ts]) ? targetVal[ts] : [targetVal[ts]];
+              if (list.some(v => String(v).toLowerCase().trim() === String(itemVal ?? '').toLowerCase().trim())) return false;
+            } else if (tsStr.includes('in')) {
+              handledSym = true;
+              const list = Array.isArray(targetVal[ts]) ? targetVal[ts] : [targetVal[ts]];
+              if (!list.some(v => String(v).toLowerCase().trim() === String(itemVal ?? '').toLowerCase().trim())) return false;
+            } else if (tsStr.includes('ne')) {
+              handledSym = true;
+              if (itemVal === targetVal[ts]) return false;
+            } else if (tsStr.includes('gte')) {
+              handledSym = true;
+              if (Number(itemVal) < Number(targetVal[ts])) return false;
+            } else if (tsStr.includes('lte')) {
+              handledSym = true;
+              if (Number(itemVal) > Number(targetVal[ts])) return false;
+            } else if (tsStr.includes('gt')) {
+              handledSym = true;
+              if (Number(itemVal) <= Number(targetVal[ts])) return false;
+            } else if (tsStr.includes('lt')) {
+              handledSym = true;
+              if (Number(itemVal) >= Number(targetVal[ts])) return false;
             }
           }
-          if (isLike) continue;
+          if (handledSym) continue;
         }
 
         if (typeof targetVal === 'string' && typeof itemVal === 'string') {
           if (key.toLowerCase().includes('email')) {
-            if (itemVal.toLowerCase() !== targetVal.toLowerCase()) return false;
+            if (itemVal.toLowerCase().trim() !== targetVal.toLowerCase().trim()) return false;
           } else {
             if (itemVal !== targetVal) return false;
           }
@@ -239,7 +338,13 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
           return false;
         }
       }
+
       return true;
+    }
+
+    function matchWhere(item, where) {
+      if (!where || typeof where !== 'object') return true;
+      return matchSingleWhere(item, where);
     }
 
     function wrapInstance(raw, modelName) {
@@ -299,6 +404,38 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
         if (options.limit && typeof options.limit === 'number') {
           records = records.slice(0, options.limit);
         }
+
+        // دعم ربط الجداول (Sequelize includes) في بيئة Mock
+        if (options.include && Array.isArray(options.include)) {
+          const userStore = loadStore('User');
+          const docStore = loadStore('Doctor');
+          const branchStore = loadStore('TherapyBranch');
+
+          records = records.map(item => {
+            const clone = { ...item };
+            for (const inc of options.include) {
+              const incModelName = inc.model?.modelName || (typeof inc.model === 'string' ? inc.model : (inc.as || ''));
+              if (incModelName === 'User' || inc.model === User) {
+                let u = userStore.find(u => String(u.id) === String(clone.user_id));
+                if (!u && clone.name) {
+                  const cleanDocName = String(clone.name).replace(/^د\.\s*/, '').trim().toLowerCase();
+                  u = userStore.find(u => {
+                    const uName = String(u.name || '').replace(/^د\.\s*/, '').trim().toLowerCase();
+                    return (uName && uName === cleanDocName) || (u.email && clone.email && u.email.toLowerCase() === clone.email.toLowerCase());
+                  });
+                }
+                clone.User = u ? { id: u.id, name: u.name, email: u.email, phone: u.phone } : null;
+              } else if (incModelName === 'Doctor' || inc.model === Doctor) {
+                const d = docStore.find(d => String(d.id) === String(clone.doctor_id));
+                clone.Doctor = d || null;
+              } else if (inc.as === 'branches' || incModelName === 'TherapyBranch') {
+                clone.branches = branchStore.filter(b => String(b.center_id) === String(clone.id));
+              }
+            }
+            return clone;
+          });
+        }
+
         return records.map(r => wrapInstance(r, name));
       };
 
@@ -375,9 +512,21 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'))
       sync: async () => ({}),
       authenticate: async () => ({}),
       query: async () => ([]),
-      where: () => ({}),
-      fn: () => '',
-      col: () => '',
+      where: (attr, comparatorOrLogic, maybeLogic) => ({
+        __isWhere: true,
+        attribute: attr,
+        comparator: maybeLogic !== undefined ? comparatorOrLogic : '=',
+        logic: maybeLogic !== undefined ? maybeLogic : comparatorOrLogic
+      }),
+      fn: (fnName, ...args) => ({
+        __isFn: true,
+        fn: String(fnName).toLowerCase(),
+        args
+      }),
+      col: (colName) => ({
+        __isCol: true,
+        col: String(colName)
+      }),
       define: (name) => createMockModel(name)
     };
   }
