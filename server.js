@@ -65,43 +65,57 @@ const multer = require('multer');
 const IMGBB_API_KEY = process.env.IMGBB_API_KEY || '450adf74bc32bb1ef24aff6e4780c2ec';
 
 async function uploadFileToImgBB(fileObj, fallbackUrl = '') {
-  if (!fileObj) return fallbackUrl || '';
-  try {
-    let buffer = null;
-    const filename = fileObj.originalname || fileObj.filename || 'upload.png';
+  // إذا توفر رابط مباشر أو صورة مشفرة كـ DataURL من العميل، نستخدمها مباشرة
+  if (fallbackUrl && (fallbackUrl.startsWith('http') || fallbackUrl.startsWith('data:image'))) {
+    return fallbackUrl;
+  }
+  if (!fileObj && !fallbackUrl) return '';
 
+  let buffer = null;
+  const filename = fileObj?.originalname || fileObj?.filename || 'upload.png';
+  const mimeType = fileObj?.mimetype || 'image/jpeg';
+
+  if (fileObj) {
     if (fileObj.buffer) {
       buffer = fileObj.buffer;
     } else if (fileObj.path && fs.existsSync(fileObj.path)) {
-      buffer = fs.readFileSync(fileObj.path);
+      try { buffer = fs.readFileSync(fileObj.path); } catch(e){}
     }
-
-    if (!buffer || buffer.length === 0) return fallbackUrl || '';
-
-    const form = new FormData();
-    const mimeType = fileObj.mimetype || 'image/png';
-    const blob = new Blob([buffer], { type: mimeType });
-    form.append('image', blob, filename);
-
-    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-      method: 'POST',
-      body: form
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.success && data.data?.url) {
-        console.log(`📸 [ImgBB Cloud] تم رفع ${filename} بنجاح -> ${data.data.url}`);
-        if (fileObj.path && fs.existsSync(fileObj.path)) {
-          try { fs.unlinkSync(fileObj.path); } catch(e){}
-        }
-        return data.data.url;
-      }
-    }
-  } catch (err) {
-    console.warn(`⚠️ [ImgBB] تعذر الرفع لـ ${fileObj?.originalname || 'الصورة'}:`, err.message);
   }
-  return fallbackUrl || (fileObj.filename ? `/uploads/doctors/${fileObj.filename}` : '');
+
+  // محاولة الرفع السحابي عبر ImgBB
+  if (buffer && buffer.length > 0) {
+    try {
+      const form = new FormData();
+      const blob = new Blob([buffer], { type: mimeType });
+      form.append('image', blob, filename);
+
+      const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+        method: 'POST',
+        body: form
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.data?.url) {
+          console.log(`📸 [ImgBB Cloud] تم رفع ${filename} بنجاح -> ${data.data.url}`);
+          if (fileObj?.path && fs.existsSync(fileObj.path)) {
+            try { fs.unlinkSync(fileObj.path); } catch(e){}
+          }
+          return data.data.url;
+        }
+      }
+    } catch (err) {
+      console.warn(`⚠️ [ImgBB] تعذر الرفع لـ ${filename}:`, err.message);
+    }
+  }
+
+  // في حال تعذر ImgBB، استخدام DataURL ذاتي التضمين لضمان عدم حدوث 404 أبداً
+  if (fallbackUrl) return fallbackUrl;
+  if (buffer && buffer.length > 0) {
+    return `data:${mimeType};base64,${buffer.toString('base64')}`;
+  }
+  return '';
 }
 const fs = require('fs');
 
@@ -1018,9 +1032,9 @@ app.post('/api/auth/register-pharmacy', uploadPharmacyDocs, async (req, res) => 
     const nationalIdFile = req.files?.['national_id_image']?.[0];
 
     const [licenseUrl, syndicateCardUrl, nationalIdUrl] = await Promise.all([
-      uploadFileToImgBB(licenseFile, req.body.licenseUrl || ''),
-      uploadFileToImgBB(syndicateCardFile, req.body.syndicateCardUrl || ''),
-      uploadFileToImgBB(nationalIdFile, req.body.nationalIdUrl || '')
+      uploadFileToImgBB(licenseFile, req.body.licenseUrl || req.body.license_image_url || ''),
+      uploadFileToImgBB(syndicateCardFile, req.body.syndicateCardUrl || req.body.syndicate_card_url || ''),
+      uploadFileToImgBB(nationalIdFile, req.body.nationalIdUrl || req.body.national_id_image_url || '')
     ]);
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -1097,9 +1111,9 @@ app.post('/api/auth/register-therapy', uploadTherapyDocs, async (req, res) => {
     const nationalIdFile = req.files?.['national_id_image']?.[0];
 
     const [licenseUrl, syndicateCardUrl, nationalIdUrl] = await Promise.all([
-      uploadFileToImgBB(licenseFile, req.body.licenseUrl || ''),
-      uploadFileToImgBB(syndicateCardFile, req.body.syndicateCardUrl || ''),
-      uploadFileToImgBB(nationalIdFile, req.body.nationalIdUrl || '')
+      uploadFileToImgBB(licenseFile, req.body.licenseUrl || req.body.license_image_url || ''),
+      uploadFileToImgBB(syndicateCardFile, req.body.syndicateCardUrl || req.body.syndicate_card_url || ''),
+      uploadFileToImgBB(nationalIdFile, req.body.nationalIdUrl || req.body.national_id_image_url || '')
     ]);
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -1373,6 +1387,10 @@ app.post('/api/auth/google-login', async (req, res) => {
       if (isAdminGoogle && user.role !== 'ADMIN') {
         user.role = 'ADMIN';
         await user.save();
+      } else if (!isAdminGoogle && user.role === 'ADMIN') {
+        // حماية مطلقة: لا يمكن لأي حساب آخر أن يكون أدمن
+        user.role = 'PATIENT';
+        await user.save();
       }
       if (phone && String(phone).trim() && (!user.phone || user.phone.trim() === '')) {
         user.phone = String(phone).trim();
@@ -1383,11 +1401,30 @@ app.post('/api/auth/google-login', async (req, res) => {
         await user.save();
       }
     } else {
-      const assignedRole = isAdminGoogle
-        ? 'ADMIN'
-        : ((role && ['PATIENT', 'DOCTOR', 'PHARMACY', 'THERAPY'].includes(role.toUpperCase())) 
-          ? role.toUpperCase() 
-          : 'PATIENT');
+      let assignedRole = 'PATIENT';
+      if (isAdminGoogle) {
+        assignedRole = 'ADMIN';
+      } else {
+        // التحقق مما إذا كان البريد ينتمي لجهة معتمدة مسبقاً
+        const cleanDocName = (name || '').replace(/^د\.\s*/, '').trim();
+        let existingDoc = null;
+        if (cleanDocName) {
+          existingDoc = await Doctor.findOne({
+            where: sequelize.where(sequelize.fn('lower', sequelize.col('name')), `%${cleanDocName.toLowerCase()}%`)
+          }).catch(() => null);
+        }
+        if (!existingDoc && phone) {
+          existingDoc = await Doctor.findOne({ where: { phone: String(phone).trim() } }).catch(() => null);
+        }
+        const existingPharm = await Pharmacy.findOne({ where: { user_id: cleanEmail } }).catch(() => null);
+        const existingTc = await TherapyCenter.findOne({ where: { user_id: cleanEmail } }).catch(() => null);
+
+        if (existingDoc) assignedRole = 'DOCTOR';
+        else if (existingPharm) assignedRole = 'PHARMACY';
+        else if (existingTc) assignedRole = 'THERAPY_CENTER';
+        else assignedRole = 'PATIENT';
+      }
+
       const randomPassword = await bcrypt.hash('GOOGLE_AUTH_' + Math.random().toString(36), 10);
       user = await User.create({
         name: isAdminGoogle ? 'المدير العام والمالك (Super Admin)' : (name || 'مستخدم Google'),
@@ -1489,6 +1526,11 @@ app.post('/api/auth/login', async (req, res) => {
         (user && user.password && (await bcrypt.compare(password, user.password).catch(() => false)))
       );
 
+      // التحقق الصارم من صحة كلمة المرور قبل أي تسجيل دخول أو إنشاء
+      if (!isValidAdminPass) {
+        return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+      }
+
       if (!user) {
         const passHash = await bcrypt.hash('admin123', 10);
         user = await User.create({
@@ -1498,8 +1540,6 @@ app.post('/api/auth/login', async (req, res) => {
           role: 'ADMIN',
           governorate: 'القاهرة'
         });
-      } else if (!isValidAdminPass) {
-        return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
       } else {
         // تحديث كلمة المرور لضمان تطابق التشفير دوماً
         const isExactHash = await bcrypt.compare(password, user.password).catch(() => false);
@@ -2909,7 +2949,30 @@ app.put('/api/admin/approve-entity', authenticate, requireAdmin, async (req, res
           await User.update({ role: 'DOCTOR' }, { where: { id: doc.user_id } }).catch(() => null);
         }
       } else {
-        entityName = name || 'الطبيب';
+        // إنشاء سجل الطبيب وتفعيله فوراً إذا لم يكن موجوداً
+        let u = null;
+        if (email) {
+          u = await User.findOne({ where: sequelize.where(sequelize.fn('lower', sequelize.col('email')), String(email).trim().toLowerCase()) }).catch(() => null);
+        }
+        const cleanDocName = name ? (name.startsWith('د.') ? name : `د. ${name}`) : 'د. طبيب معتمد';
+        doc = await Doctor.create({
+          name: cleanDocName,
+          specialty: 'general',
+          bio: 'طبيب استشاري معتمد لدى منصة حياه',
+          phone: phone || (u ? u.phone : ''),
+          consultation_fee: 150,
+          clinic_name: 'عيادة خاصة',
+          clinic_type: 'PRIVATE',
+          governorate: (u && u.governorate) ? u.governorate : 'القاهرة',
+          verification_status: 'VERIFIED',
+          subscription_status: 'PAID',
+          user_id: u ? u.id : null
+        }).catch(() => null);
+        if (u) {
+          u.role = 'DOCTOR';
+          await u.save().catch(() => null);
+        }
+        entityName = cleanDocName;
       }
     } else if (type === 'PHARMACY') {
       let ph = await Pharmacy.findByPk(id);

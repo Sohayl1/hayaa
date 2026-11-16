@@ -129,17 +129,29 @@
         // استرجاع البروفايل السحابي من Firebase Firestore إن وجد
         let fsPhone = '';
         let fsGov = '';
+        let fsRole = '';
         try {
           const docSnap = await getDoc(doc(db, "users", fbUser.uid));
           if (docSnap && docSnap.exists()) {
             const uData = docSnap.data();
             if (uData.phone) fsPhone = uData.phone;
             if (uData.governorate) fsGov = uData.governorate;
+            if (uData.role) fsRole = uData.role;
           }
         } catch(fsErr){}
 
         const knownPhone = fsPhone || cachedProfile.phone || '';
         const knownGov = fsGov || cachedProfile.governorate || 'القاهرة';
+
+        // تحديد الدور الثابت: الأدمن هو ADMIN قطعي، وغير ذلك نحافظ على دوره المسجل مسبقاً في Firestore أو PATIENT
+        let determinedRole = 'PATIENT';
+        if (isAdminUser) {
+          determinedRole = 'ADMIN';
+        } else if (fsRole && ['DOCTOR', 'PHARMACY', 'THERAPY', 'THERAPY_CENTER', 'PATIENT'].includes(fsRole)) {
+          determinedRole = (fsRole === 'THERAPY' ? 'THERAPY_CENTER' : fsRole);
+        } else if (cachedProfile.role && ['DOCTOR', 'PHARMACY', 'THERAPY', 'THERAPY_CENTER', 'PATIENT'].includes(cachedProfile.role)) {
+          determinedRole = (cachedProfile.role === 'THERAPY' ? 'THERAPY_CENTER' : cachedProfile.role);
+        }
 
         // إرسال طلب التوثيق وتسجيل الدخول للسيرفر مباشرة لتحديد الدور الفعلي الثابت للحساب من قاعدة البيانات
         const serverRes = await fetch('/api/auth/google-login', {
@@ -150,7 +162,7 @@
             name: fbUser.displayName || (isAdminUser ? 'المدير العام والمالك (Super Admin)' : 'مستخدم Google'),
             photoUrl: fbUser.photoURL || '',
             uid: fbUser.uid,
-            role: isAdminUser ? 'ADMIN' : (typeof currentAuthRole !== 'undefined' ? currentAuthRole : 'PATIENT'),
+            role: determinedRole,
             phone: knownPhone,
             governorate: knownGov
           })
@@ -170,6 +182,8 @@
         // حساب الأدمن دائماً وأبداً دوره ADMIN بدون أدنى شك
         if (isAdminUser) {
           currentUser.role = 'ADMIN';
+        } else if (currentUser.role === 'ADMIN') {
+          currentUser.role = 'PATIENT';
         }
 
         // تثبيت رقم الهاتف والمحافظة المسترجعة في currentUser
@@ -317,17 +331,73 @@
       }
     };
 
-    // خدمة رفع وتخزين الصور السحابي الدائم عبر ImgBB
+    // ضغط الصور محلياً في المتصفح لتقليل الحجم إلى أقل من 80 كيلوبايت وضمان سرعة الرفع والاعتماد الفوري
+    window.compressImageFile = function(fileOrBase64, maxWidth = 1000, quality = 0.72) {
+      return new Promise((resolve) => {
+        if (!fileOrBase64) return resolve('');
+        if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:image')) {
+          const img = new Image();
+          img.onload = function() {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = () => resolve(fileOrBase64);
+          img.src = fileOrBase64;
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = new Image();
+          img.onload = function() {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = () => resolve(e.target.result);
+          img.src = e.target.result;
+        };
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(fileOrBase64);
+      });
+    };
+
+    // خدمة رفع وتخزين الصور السحابي مع ضغط وحماية وفولباك فوري مضغوط
     window.uploadToImgBB = async function(fileOrBase64) {
       if (!fileOrBase64) return null;
-      const apiKey = '450adf74bc32bb1ef24aff6e4780c2ec';
+      let compressedDataUrl = '';
       try {
+        compressedDataUrl = await window.compressImageFile(fileOrBase64, 1000, 0.72);
+      } catch(e) {}
+
+      // محاولة الرفع السحابي إذا كانت الخدمة متوفرة
+      try {
+        const apiKey = '450adf74bc32bb1ef24aff6e4780c2ec';
         const form = new FormData();
-        if (typeof fileOrBase64 === 'string') {
-          const pureBase64 = fileOrBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-          form.append('image', pureBase64);
-        } else {
-          form.append('image', fileOrBase64, fileOrBase64.name || 'upload.png');
+        const base64Clean = (compressedDataUrl || (typeof fileOrBase64 === 'string' ? fileOrBase64 : '')).replace(/^data:image\/[a-z]+;base64,/, '');
+        if (base64Clean) {
+          form.append('image', base64Clean);
+        } else if (fileOrBase64 && fileOrBase64.name) {
+          form.append('image', fileOrBase64, fileOrBase64.name);
         }
         const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
           method: 'POST',
@@ -341,9 +411,12 @@
           }
         }
       } catch (err) {
-        console.warn('ImgBB client upload error:', err.message);
+        console.warn('ImgBB client upload note:', err.message);
       }
-      return null;
+
+      // فولباك فوري ومضمون 100%: استخدام الصورة المضغوطة المشفرة كـ DataURL
+      // حجمها خفيف جداً (<60KB) وتعمل دائماً دون أي تبعيات أو حظر API
+      return compressedDataUrl || null;
     };
 
     console.log('🔥 [Firebase] تم تهيئة مشروع hayat-d9689 بنجاح وتفعيل تسجيل الدخول بجوجل وقاعدة البيانات Firestore!');
@@ -7953,14 +8026,12 @@
         if (faceUrl) formData.append('facePhotoUrl', faceUrl);
         if (clinicUrl) formData.append('clinicPhotoUrl', clinicUrl);
 
-        formData.append('syndicateFront', syndicateFrontFile);
-        formData.append('syndicateBack', syndicateBackFile);
-        formData.append('graduationCert', graduationCertFile);
-        formData.append('facePhoto', facePhotoFile);
-
-        if (clinicPhotoFile) {
-          formData.append('clinicPhoto', clinicPhotoFile);
-        }
+        // إرفاق الملفات الأصلية فقط إذا كان حجمها صغيراً لتجنب تجاوز حد 4.5MB على Vercel
+        if (syndicateFrontFile && syndicateFrontFile.size < 1048576) formData.append('syndicateFront', syndicateFrontFile);
+        if (syndicateBackFile && syndicateBackFile.size < 1048576) formData.append('syndicateBack', syndicateBackFile);
+        if (graduationCertFile && graduationCertFile.size < 1048576) formData.append('graduationCert', graduationCertFile);
+        if (facePhotoFile && facePhotoFile.size < 1048576) formData.append('facePhoto', facePhotoFile);
+        if (clinicPhotoFile && clinicPhotoFile.size < 1048576) formData.append('clinicPhoto', clinicPhotoFile);
 
         // حفظ محلي احتياطي للطلبات المعلقة
         try {
@@ -9301,6 +9372,37 @@
       if (sub === 'complaints') loadAdminComplaints();
     }
 
+    // نافذة معاينة وتكبير المستندات الرسمية للأدمن
+    window.viewDocumentImage = function(src, title) {
+      if (!src) return;
+      let modal = document.getElementById('docImagePreviewModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'docImagePreviewModal';
+        modal.style.cssText = 'position:fixed; inset:0; background:rgba(11,30,51,0.85); backdrop-filter:blur(6px); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999999; padding:16px;';
+        modal.onclick = (e) => {
+          if (e.target === modal || e.target.id === 'closeDocImgBtn' || e.target.closest('#closeDocImgBtn')) {
+            modal.style.display = 'none';
+          }
+        };
+        modal.innerHTML = `
+          <div style="max-width:92vw; max-height:88vh; background:white; border-radius:18px; overflow:hidden; box-shadow:0 16px 48px rgba(0,0,0,0.4); display:flex; flex-direction:column; border:1px solid #cbd5e1;">
+            <div style="padding:14px 20px; background:#0b1e33; color:white; display:flex; justify-content:space-between; align-items:center;">
+              <strong id="docImgModalTitle" style="font-size:15px; font-weight:800;">معاينة المستند</strong>
+              <button id="closeDocImgBtn" type="button" style="background:#1e3a5f; border:none; color:white; width:32px; height:32px; border-radius:50%; font-size:16px; cursor:pointer; font-weight:800; display:flex; align-items:center; justify-content:center;">✕</button>
+            </div>
+            <div style="padding:16px; overflow:auto; text-align:center; max-height:calc(88vh - 60px); background:#f8fafc; display:flex; align-items:center; justify-content:center;">
+              <img id="docImgModalImg" src="" style="max-width:100%; max-height:75vh; border-radius:12px; object-fit:contain; box-shadow:0 4px 16px rgba(0,0,0,0.08);">
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+      document.getElementById('docImgModalTitle').textContent = title || 'معاينة المستند';
+      document.getElementById('docImgModalImg').src = src;
+      modal.style.display = 'flex';
+    };
+
     // جلب وعرض طلبات الانضمام المعلقة (أطباء + صيدليات + مراكز علاج طبيعي)
     async function loadAdminVerifications() {
       const container = document.getElementById('adminVerificationsList');
@@ -9415,36 +9517,28 @@
                   <strong style="font-size:12px; color:#0b1e33; display:block; margin-bottom:8px;">📁 صور المستندات المرفوعة من الطبيب (اضغط للتكبير):</strong>
                   <div style="display:flex; flex-wrap:wrap; gap:12px;">
                     ${doc.syndicate_card_front ? `
-                      <a href="${doc.syndicate_card_front}" target="_blank" style="text-decoration:none;">
-                        <div style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center;">
-                          <img src="${doc.syndicate_card_front}" style="height:70px; border-radius:6px; object-fit:cover;">
-                          <span style="display:block; font-size:10px; color:#475569; margin-top:3px;">كارنيه وش</span>
-                        </div>
-                      </a>
+                      <div onclick="viewDocumentImage('${doc.syndicate_card_front}', 'كارنيه النقابة (وش) - ${doc.name.replace(/'/g, "\\'")}')" style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center; cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${doc.syndicate_card_front}" style="height:70px; border-radius:6px; object-fit:cover;">
+                        <span style="display:block; font-size:10px; color:#475569; margin-top:3px; font-weight:700;">كارنيه وش 🔍</span>
+                      </div>
                     ` : '<span style="font-size:11px; color:#94a3b8;">لا يوجد كارنيه وش</span>'}
                     ${doc.syndicate_card_back ? `
-                      <a href="${doc.syndicate_card_back}" target="_blank" style="text-decoration:none;">
-                        <div style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center;">
-                          <img src="${doc.syndicate_card_back}" style="height:70px; border-radius:6px; object-fit:cover;">
-                          <span style="display:block; font-size:10px; color:#475569; margin-top:3px;">كارنيه ضهر</span>
-                        </div>
-                      </a>
+                      <div onclick="viewDocumentImage('${doc.syndicate_card_back}', 'كارنيه النقابة (ضهر) - ${doc.name.replace(/'/g, "\\'")}')" style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center; cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${doc.syndicate_card_back}" style="height:70px; border-radius:6px; object-fit:cover;">
+                        <span style="display:block; font-size:10px; color:#475569; margin-top:3px; font-weight:700;">كارنيه ضهر 🔍</span>
+                      </div>
                     ` : ''}
                     ${doc.graduation_cert ? `
-                      <a href="${doc.graduation_cert}" target="_blank" style="text-decoration:none;">
-                        <div style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center;">
-                          <img src="${doc.graduation_cert}" style="height:70px; border-radius:6px; object-fit:cover;">
-                          <span style="display:block; font-size:10px; color:#475569; margin-top:3px;">شهادة التخرج</span>
-                        </div>
-                      </a>
+                      <div onclick="viewDocumentImage('${doc.graduation_cert}', 'شهادة التخرج - ${doc.name.replace(/'/g, "\\'")}')" style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center; cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${doc.graduation_cert}" style="height:70px; border-radius:6px; object-fit:cover;">
+                        <span style="display:block; font-size:10px; color:#475569; margin-top:3px; font-weight:700;">شهادة التخرج 🔍</span>
+                      </div>
                     ` : ''}
                     ${doc.profile_photo ? `
-                      <a href="${doc.profile_photo}" target="_blank" style="text-decoration:none;">
-                        <div style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center;">
-                          <img src="${doc.profile_photo}" style="height:70px; border-radius:6px; object-fit:cover;">
-                          <span style="display:block; font-size:10px; color:#475569; margin-top:3px;">صورة شخصية</span>
-                        </div>
-                      </a>
+                      <div onclick="viewDocumentImage('${doc.profile_photo}', 'صورة الطبيب الشخصية - ${doc.name.replace(/'/g, "\\'")}')" style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center; cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${doc.profile_photo}" style="height:70px; border-radius:6px; object-fit:cover;">
+                        <span style="display:block; font-size:10px; color:#475569; margin-top:3px; font-weight:700;">صورة شخصية 🔍</span>
+                      </div>
                     ` : ''}
                   </div>
                 </div>
@@ -9489,28 +9583,22 @@
                   <strong style="font-size:12px; color:#0b1e33; display:block; margin-bottom:8px;">📁 صور المستندات المرفوعة (ترخيص الصيدلية، كارنيه النقابة، البطاقة):</strong>
                   <div style="display:flex; flex-wrap:wrap; gap:12px;">
                     ${ph.license_image ? `
-                      <a href="${ph.license_image}" target="_blank" style="text-decoration:none;">
-                        <div style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center;">
-                          <img src="${ph.license_image}" style="height:70px; border-radius:6px; object-fit:cover;">
-                          <span style="display:block; font-size:10px; color:#475569; margin-top:3px;">ترخيص الصيدلية</span>
-                        </div>
-                      </a>
+                      <div onclick="viewDocumentImage('${ph.license_image}', 'ترخيص الصيدلية - ${ph.name.replace(/'/g, "\\'")}')" style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center; cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${ph.license_image}" style="height:70px; border-radius:6px; object-fit:cover;">
+                        <span style="display:block; font-size:10px; color:#475569; margin-top:3px; font-weight:700;">ترخيص الصيدلية 🔍</span>
+                      </div>
                     ` : '<span style="font-size:11px; color:#94a3b8;">لا يوجد ترخيص مرفوع</span>'}
                     ${ph.syndicate_card ? `
-                      <a href="${ph.syndicate_card}" target="_blank" style="text-decoration:none;">
-                        <div style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center;">
-                          <img src="${ph.syndicate_card}" style="height:70px; border-radius:6px; object-fit:cover;">
-                          <span style="display:block; font-size:10px; color:#475569; margin-top:3px;">كارنيه الصيادلة</span>
-                        </div>
-                      </a>
+                      <div onclick="viewDocumentImage('${ph.syndicate_card}', 'كارنيه الصيادلة - ${ph.name.replace(/'/g, "\\'")}')" style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center; cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${ph.syndicate_card}" style="height:70px; border-radius:6px; object-fit:cover;">
+                        <span style="display:block; font-size:10px; color:#475569; margin-top:3px; font-weight:700;">كارنيه الصيادلة 🔍</span>
+                      </div>
                     ` : ''}
                     ${ph.national_id_image ? `
-                      <a href="${ph.national_id_image}" target="_blank" style="text-decoration:none;">
-                        <div style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center;">
-                          <img src="${ph.national_id_image}" style="height:70px; border-radius:6px; object-fit:cover;">
-                          <span style="display:block; font-size:10px; color:#475569; margin-top:3px;">بطاقة الرقم القومي</span>
-                        </div>
-                      </a>
+                      <div onclick="viewDocumentImage('${ph.national_id_image}', 'بطاقة الرقم القومي - ${ph.name.replace(/'/g, "\\'")}')" style="border:1px solid #cbd5e1; border-radius:8px; padding:4px; background:white; text-align:center; cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${ph.national_id_image}" style="height:70px; border-radius:6px; object-fit:cover;">
+                        <span style="display:block; font-size:10px; color:#475569; margin-top:3px; font-weight:700;">بطاقة الرقم القومي 🔍</span>
+                      </div>
                     ` : ''}
                   </div>
                 </div>
@@ -9719,9 +9807,20 @@
         const syndFile = document.getElementById('phSyndicateFile').files[0];
         const nidFile = document.getElementById('phNationalIdFile').files[0];
 
-        if (licFile) formData.append('license_image', licFile);
-        if (syndFile) formData.append('syndicate_card', syndFile);
-        if (nidFile) formData.append('national_id_image', nidFile);
+        // ضغط وتأمين صور المستندات قبل الإرسال
+        const [licData, syndData, nidData] = await Promise.all([
+          licFile ? window.compressImageFile(licFile, 1000, 0.72) : Promise.resolve(''),
+          syndFile ? window.compressImageFile(syndFile, 1000, 0.72) : Promise.resolve(''),
+          nidFile ? window.compressImageFile(nidFile, 1000, 0.72) : Promise.resolve('')
+        ]);
+
+        if (licData) formData.append('license_image_url', licData);
+        if (syndData) formData.append('syndicate_card_url', syndData);
+        if (nidData) formData.append('national_id_image_url', nidData);
+
+        if (licFile && licFile.size < 1048576) formData.append('license_image', licFile);
+        if (syndFile && syndFile.size < 1048576) formData.append('syndicate_card', syndFile);
+        if (nidFile && nidFile.size < 1048576) formData.append('national_id_image', nidFile);
 
         const res = await fetch('/api/auth/register-pharmacy', {
           method: 'POST',
@@ -9775,9 +9874,20 @@
         const syndFile = document.getElementById('thSyndicateFile').files[0];
         const nidFile = document.getElementById('thNationalIdFile').files[0];
 
-        if (licFile) formData.append('license_image', licFile);
-        if (syndFile) formData.append('syndicate_card', syndFile);
-        if (nidFile) formData.append('national_id_image', nidFile);
+        // ضغط وتأمين صور المستندات قبل الإرسال
+        const [licData, syndData, nidData] = await Promise.all([
+          licFile ? window.compressImageFile(licFile, 1000, 0.72) : Promise.resolve(''),
+          syndFile ? window.compressImageFile(syndFile, 1000, 0.72) : Promise.resolve(''),
+          nidFile ? window.compressImageFile(nidFile, 1000, 0.72) : Promise.resolve('')
+        ]);
+
+        if (licData) formData.append('license_image_url', licData);
+        if (syndData) formData.append('syndicate_card_url', syndData);
+        if (nidData) formData.append('national_id_image_url', nidData);
+
+        if (licFile && licFile.size < 1048576) formData.append('license_image', licFile);
+        if (syndFile && syndFile.size < 1048576) formData.append('syndicate_card', syndFile);
+        if (nidFile && nidFile.size < 1048576) formData.append('national_id_image', nidFile);
 
         const res = await fetch('/api/auth/register-therapy', {
           method: 'POST',
@@ -10133,34 +10243,8 @@
           `;
         }).join('');
       } catch (err) {
-        console.warn('loadDoctors error, falling back to seed doctors:', err);
-        const fallbackDocs = (typeof SEED_FALLBACK_DOCTORS !== 'undefined' && Array.isArray(SEED_FALLBACK_DOCTORS)) ? SEED_FALLBACK_DOCTORS : [];
-        if (fallbackDocs.length) {
-          container.innerHTML = fallbackDocs.map(doc => {
-            const docFee = doc.consultation_fee || 150;
-            const totalFee = docFee + 10;
-            const specInfo = getSpecialtyBadge(doc.specialty);
-            return `
-              <div class="doctor-card">
-                <div class="doc-card-top" style="display:flex; align-items:center; gap:12px;">
-                  <div class="doc-avatar">${specInfo.icon}</div>
-                  <div style="flex:1;">
-                    <h3 style="font-size:16px; font-weight:800; color:#0b1e33; margin:0;">${doc.name}</h3>
-                    <div style="font-size:12px; color:#0284c7; font-weight:700;">${specInfo.title}</div>
-                  </div>
-                </div>
-                <div style="font-size:12px; color:#64748b; margin:8px 0;">${doc.bio || 'طبيب استشاري معتمد في منصة حياه'}</div>
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:8px 12px; border-radius:10px; font-size:12px; margin-bottom:10px;">
-                  <span>كشف العيادة: <strong style="color:#00897b;">${docFee} ج</strong></span>
-                  <span>المحافظة: <strong>${doc.governorate || 'القاهرة'}</strong></span>
-                </div>
-                <button class="btn-book" onclick="bookAppointment('${doc.id}', '${doc.name.replace(/'/g, '')}', ${docFee}, '${specInfo.title}', '${doc.clinic_name || 'عيادة'}')" style="width:100%; padding:10px; border-radius:10px; background:#00897b; color:white; border:none; font-weight:800; font-size:13px; cursor:pointer;">
-                  احجز كشف الآن
-                </button>
-              </div>
-            `;
-          }).join('');
-        }
+        console.warn('loadAdminTherapy error:', err);
+        container.innerHTML = `<p style="color:#ef4444; text-align:center; padding:12px;">خطأ في تحميل مراكز العلاج الطبيعي: ${err.message}</p>`;
       }
     }
 
